@@ -1,0 +1,6 @@
+integrations:
+  - name: nri-hyperv-report
+    inventory_source: metadata/system
+    env:
+      Cluster: hyperv-cluster-1
+      LogLevel: INFO
