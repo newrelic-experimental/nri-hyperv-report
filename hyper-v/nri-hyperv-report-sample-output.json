@@ -1,7 +1,6 @@
 {
-  "name": "com.newrelic.hyperv.report",
   "integration_version": "0.1.0",
-  "protocol_version": 3,
+  "name": "com.newrelic.hyperv.report",
   "data": [{
     "inventory": {
       "name": {
@@ -10,100 +9,83 @@
     },
     "events": [],
     "metrics": [{
-      "event_type": "HypervHostSample",
-      "clusterName": "hyperv-cluster-1",
-      "domain": "AD.nerdy.for.hyperv",
-      "bootupState": "Normal boot",
-      "hyperthreading": "Active",
-      "logicalProcessors": 72,
       "manufacturer": "Amazon EC2",
-      "migrationEnabled": true,
-      "model": "i3.metal",
-      "osVersion": "Windows Server 2016 Datacenter",
-      "processorModel": "Intel(R) Xeon(R) CPU E5-2686 v4 @ 2.30GHz",
-      "processorSocketCount": 2,
-      "state": 0,
-      "status": "OK",
-      "uptime": 555231083.38400006,
-      "virtualProcessors": 1,
-      "name": "HyperV-HV-1",
-      "vpLpRatio": 0.014,
-      "mem.free_percent": 97,
-      "mem.free": 522201768,
-      "mem.total": 536737036,
-      "mem.used": 14535268,
       "vm.running.clustered": 0,
-      "vm.running.nonClustered": 1,
+      "vm.total": 2,
+      "name": "HyperV-HV-1",
       "vm.running.total": 1,
-      "vm.total": 2
+      "event_type": "HypervHostSample",
+      "processorSocketCount": 2,
+      "vm.running.nonClustered": 1,
+      "model": "i3.metal",
+      "mem.free": 522250024,
+      "migrationEnabled": true,
+      "mem.free_percent": 97,
+      "mem.total": 536737036,
+      "virtualProcessors": 1,
+      "bootupState": "Normal boot",
+      "domain": "AD.nerdy.for.hyperv",
+      "osVersion": "10.0.14393",
+      "mem.used": 14487012,
+      "processorModel": "Intel(R) Xeon(R) CPU E5-2686 v4 @ 2.30GHz",
+      "state": 0,
+      "hyperthreading": "Active",
+      "status": "OK",
+      "logicalProcessors": 72,
+      "uptime": 726499200.38400006,
+      "vpLpRatio": 0.014,
+      "clusterName": "hyperv-cluster-1"
     }],
     "entity": {
-      "type": "hyperv",
       "name": "hypervisor:hyperv-cluster-1:HyperV-HV-1",
-      "id_attributes": []
+      "id_attributes": [],
+      "type": "hyperv"
     }
   }, {
-    "inventory": {
-      "name": {
-        "value": ""
-      }
-    },
+    "inventory": {},
     "events": [],
     "metrics": [{
-      "event_type": "HypervNetworkAdapterSample",
-      "domain": "AD.nerdy.for.hyperv",
-      "vmName": "AnotherHyperVM",
-      "vmId": "3d9a0621-df77-4528-a857-6c7a23426840",
-      "hypervisorHost": "HyperV-HV-1",
-      "clusterMonitored": "Protected Network: On",
-      "connection": "Connected",
+      "routerGuard": 1,
+      "id": "08b737a0-578b-4bde-8d5d-c57032b853d4",
       "dhcpGuard": 1,
-      "ipAddress": null,
-      "ipAddresses": "Unable to get ip address information",
-      "macAddress": "00155D01AB06",
-      "macAddressType": "Dynamic",
-      "name": "Network Adapter",
-      "id": "08B737A0-578B-4BDE-8D5D-C57032B853D4",
+      "macIsDynamic": true,
       "type": "Synthetic",
       "portMirroringMode": 0,
-      "routerGuard": 1,
-      "switchName": "ExternalVSwitch",
       "switchId": "697b84dd-fac2-4c95-b034-ec08e19bd946",
-      "vlan": 0
+      "clusterMonitored": "Protected Network: On",
+      "switchName": "ExternalVSwitch",
+      "event_type": "HypervNetworkAdapterSample",
+      "vmName": "AnotherHyperVM",
+      "domain": "AD.nerdy.for.hyperv",
+      "isConnected": true,
+      "macAddress": "00155D01AB06",
+      "ipAddress": null,
+      "vmId": "3d9a0621-df77-4528-a857-6c7a23426840",
+      "ipAddresses": "Unable to get ip address information",
+      "name": "Network Adapter",
+      "vlan": 0,
+      "hypervisorHost": "HyperV-HV-1"
     }],
-    "entity": {
-      "type": "hyperv",
-      "name": "",
-      "id_attributes": []
-    }
+    "entity": {}
   }, {
-    "inventory": {
-      "name": {
-        "value": ""
-      }
-    },
+    "inventory": {},
     "events": [],
     "metrics": [{
-      "event_type": "HypervVmDiskSample",
+      "isDiffDisk": true,
       "domain": "AD.nerdy.for.hyperv",
-      "hypervisorHost": "HyperV-HV-1",
-      "vmName": "AnotherHyperVM",
-      "diskName": "AnotherHyperVM.vhdx",
-      "diskPath": "E:\\Hyper-V\\Virtual Hard Disks\\AnotherHyperVM.vhdx",
-      "diskType": 3,
-      "host": "HyperV-HV-1",
-      "vhdType": 3,
-      "vhdFormat": 3,
-      "diskAttached": false,
+      "fragmentationPercentage": 4,
       "size.max": 32212254720,
+      "vmName": "HyperV-HV-1",
+      "format": 3,
+      "type": 3,
+      "name": "AnotherHyperVM.vhdx",
+      "event_type": "HypervVmDiskSample",
       "size.used": 5775556608,
-      "fragmentationPercentage": 4
+      "path": "E:\\Hyper-V\\Virtual Hard Disks\\AnotherHyperVM.vhdx",
+      "attached": false,
+      "hypervisorHost": "HyperV-HV-1"
     }],
-    "entity": {
-      "type": "hyperv",
-      "name": "",
-      "id_attributes": []
-    }
+    "entity": {}
   }, {
     "inventory": {
       "name": {
@@ -112,96 +94,79 @@
     },
     "events": [],
     "metrics": [{
-      "event_type": "HypervVmSample",
-      "clusterName": "hyperv-cluster-1",
-      "domain": "AD.nerdy.for.hyperv",
-      "hasCheckpoint": "No",
-      "checkpointCount": null,
-      "processorCount": 1,
-      "generation": 1,
-      "path": "E:\\Hyper-V\\Virtual Machines",
-      "state": "Off",
-      "version": "8.0",
-      "hypervisorHost": "HyperV-HV-1",
+      "integrationServicesVersion": "",
       "name": "AnotherHyperVM",
       "integrationServicesState": "",
-      "integrationServicesVersion": "",
-      "isClustered": false,
-      "cpu.usage": 0,
-      "mem.assigned": 0,
-      "mem.demand": 0,
-      "mem.startup": 1073741824,
-      "mem.max": 1099511627776,
+      "event_type": "HypervVmSample",
+      "processorCount": 1,
       "mem.min": 536870912,
-      "uptime": 0
+      "generation": 1,
+      "mem.assigned": 0,
+      "mem.max": 1099511627776,
+      "hypervisorHost": "HyperV-HV-1",
+      "domain": "AD.nerdy.for.hyperv",
+      "version": "8.0",
+      "mem.demand": 0,
+      "checkpointCount": null,
+      "isClustered": false,
+      "state": "Off",
+      "hasCheckpoint": "No",
+      "cpu.usage": 0,
+      "mem.startup": 1073741824,
+      "path": "E:\\Hyper-V\\Virtual Machines",
+      "uptime": 0,
+      "clusterName": "hyperv-cluster-1"
     }],
     "entity": {
-      "type": "hyperv",
       "name": "vm:HyperV-HV-1:AnotherHyperVM",
-      "id_attributes": []
+      "id_attributes": [],
+      "type": "hyperv"
     }
   }, {
-    "inventory": {
-      "name": {
-        "value": ""
-      }
-    },
+    "inventory": {},
     "events": [],
     "metrics": [{
-      "event_type": "HypervNetworkAdapterSample",
-      "domain": "AD.nerdy.for.hyperv",
-      "vmName": "WinDev2011Eval",
-      "vmId": "222f5486-9884-4fc9-8dd1-9fa3987d2f8c",
-      "hypervisorHost": "HyperV-HV-1",
-      "clusterMonitored": "Protected Network: On",
-      "connection": "Connected",
+      "routerGuard": 1,
+      "id": "a878e36d-ce22-467c-a9b5-8ce79976473d",
       "dhcpGuard": 1,
-      "ipAddress": "169.254.178.223",
-      "ipAddresses": "169.254.178.223, fe80::3032:54bd:b655:b2df",
-      "macAddress": "00155D01AB05",
-      "macAddressType": "Dynamic",
-      "name": "Network Adapter",
-      "id": "A878E36D-CE22-467C-A9B5-8CE79976473D",
+      "macIsDynamic": true,
       "type": "Synthetic",
       "portMirroringMode": 0,
-      "routerGuard": 1,
-      "switchName": "ExternalVSwitch",
       "switchId": "697b84dd-fac2-4c95-b034-ec08e19bd946",
-      "vlan": 0
+      "clusterMonitored": "Protected Network: On",
+      "switchName": "ExternalVSwitch",
+      "event_type": "HypervNetworkAdapterSample",
+      "vmName": "WinDev2011Eval",
+      "domain": "AD.nerdy.for.hyperv",
+      "isConnected": true,
+      "macAddress": "00155D01AB05",
+      "ipAddress": "169.254.178.223",
+      "vmId": "222f5486-9884-4fc9-8dd1-9fa3987d2f8c",
+      "ipAddresses": "169.254.178.223, fe80::3032:54bd:b655:b2df",
+      "name": "Network Adapter",
+      "vlan": 0,
+      "hypervisorHost": "HyperV-HV-1"
     }],
-    "entity": {
-      "type": "hyperv",
-      "name": "",
-      "id_attributes": []
-    }
+    "entity": {}
   }, {
-    "inventory": {
-      "name": {
-        "value": ""
-      }
-    },
+    "inventory": {},
     "events": [],
     "metrics": [{
-      "event_type": "HypervVmDiskSample",
+      "isDiffDisk": true,
       "domain": "AD.nerdy.for.hyperv",
-      "hypervisorHost": "HyperV-HV-1",
-      "vmName": "WinDev2011Eval",
-      "diskName": "WinDev2011Eval.vhd",
-      "diskPath": "E:\\Hyper-V\\Virtual Hard Disks\\WinDev2011Eval.vhd",
-      "diskType": 3,
-      "host": "HyperV-HV-1",
-      "vhdType": 3,
-      "vhdFormat": 2,
-      "diskAttached": true,
+      "fragmentationPercentage": 100,
       "size.max": 136365211648,
+      "vmName": "HyperV-HV-1",
+      "format": 2,
+      "type": 3,
+      "name": "WinDev2011Eval.vhd",
+      "event_type": "HypervVmDiskSample",
       "size.used": 40573271040,
-      "fragmentationPercentage": 100
+      "path": "E:\\Hyper-V\\Virtual Hard Disks\\WinDev2011Eval.vhd",
+      "attached": true,
+      "hypervisorHost": "HyperV-HV-1"
     }],
-    "entity": {
-      "type": "hyperv",
-      "name": "",
-      "id_attributes": []
-    }
+    "entity": {}
   }, {
     "inventory": {
       "name": {
@@ -210,33 +175,33 @@
     },
     "events": [],
     "metrics": [{
-      "event_type": "HypervVmSample",
-      "clusterName": "hyperv-cluster-1",
-      "domain": "AD.nerdy.for.hyperv",
-      "hasCheckpoint": "No",
-      "checkpointCount": null,
-      "processorCount": 1,
-      "generation": 1,
-      "path": "E:\\Hyper-V\\Virtual Machines",
-      "state": "Running",
-      "version": "8.0",
-      "hypervisorHost": "HyperV-HV-1",
+      "integrationServicesVersion": "10.0.19042",
       "name": "WinDev2011Eval",
       "integrationServicesState": "Up to date",
-      "integrationServicesVersion": "10.0.19042",
-      "isClustered": false,
-      "cpu.usage": 0,
-      "mem.assigned": 2147483648,
-      "mem.demand": 0,
-      "mem.startup": 2147483648,
-      "mem.max": 8589934592,
+      "event_type": "HypervVmSample",
+      "processorCount": 1,
       "mem.min": 2147483648,
-      "uptime": 555213000
+      "generation": 1,
+      "mem.assigned": 2147483648,
+      "mem.max": 8589934592,
+      "hypervisorHost": "HyperV-HV-1",
+      "domain": "AD.nerdy.for.hyperv",
+      "version": "8.0",
+      "mem.demand": 0,
+      "checkpointCount": null,
+      "isClustered": false,
+      "state": "Running",
+      "hasCheckpoint": "No",
+      "cpu.usage": 1,
+      "mem.startup": 2147483648,
+      "path": "E:\\Hyper-V\\Virtual Machines",
+      "uptime": 726480000,
+      "clusterName": "hyperv-cluster-1"
     }],
     "entity": {
-      "type": "hyperv",
       "name": "vm:HyperV-HV-1:WinDev2011Eval",
-      "id_attributes": []
+      "id_attributes": [],
+      "type": "hyperv"
     }
   }, {
     "inventory": {
@@ -246,33 +211,34 @@
     },
     "events": [],
     "metrics": [{
-      "event_type": "HypervClusterSample",
-      "name": "hyperv-cluster-1",
-      "domain": "AD.nerdy.for.hyperv",
+      "vm.total": 0,
+      "storage.used": 0,
       "backupInProgress": 0,
+      "name": "hyperv-cluster-1",
+      "vm.vhd.used": null,
+      "vm.vhd.size": null,
+      "nodes.total": 0,
+      "vm.mem.size": null,
+      "mem.used": 14487012,
+      "mem.reserved": null,
+      "sharedVolumeRoot": "C:\\ClusterStorage",
+      "vm.running": 0,
+      "domain": "AD.nerdy.for.hyperv",
+      "mem.size": 536737036,
+      "upgradeVersion": 8,
+      "sharedVolumesEnabled": "Enabled",
       "functionalLevel": 9,
       "logicalProcessors": 72,
-      "sharedVolumeRoot": "C:\\ClusterStorage",
-      "sharedVolumesEnabled": "Enabled",
-      "upgradeVersion": 8,
-      "nodes.total": 0,
-      "nodes.up": 1,
-      "mem.reserved": null,
-      "mem.used": 14535268,
-      "mem.size": 536737036,
-      "storage.used": 0,
       "storage.size": 0,
-      "vm.total": 0,
-      "vm.running": 0,
       "vm.mem.used": null,
-      "vm.mem.size": null,
-      "vm.vhd.used": null,
-      "vm.vhd.size": null
+      "nodes.up": 1,
+      "event_type": "HypervClusterSample"
     }],
     "entity": {
-      "type": "hyperv",
       "name": "cluster:hyperv-cluster-1",
-      "id_attributes": []
+      "id_attributes": [],
+      "type": "hyperv"
     }
-  }]
+  }],
+  "protocol_version": 3
 }
