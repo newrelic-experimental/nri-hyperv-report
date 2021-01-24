@@ -154,7 +154,7 @@
   .PARAMETER WriteToNRI
 
     Write to New Relic Infrastructure. Sends logs to stderr and only NRI JSON output to stdout. Default: $true
-    
+
 	.NOTES
 
 		Adapted from Hyper-V Capacity Report:
@@ -1037,7 +1037,7 @@ Param (
                     state = $offlineVmConfig.State
                     ownerGroup = $offlineVmConfig.OwnerGroup
                     clusterName = $offlineVmConfig.Cluster.Trim()
-                    hypervisorHost = $VMHostItem
+                    hypervisorHostname = $VMHostItem
                     name = $offlineVmConfig.Name
                     id = $offlineVmConfig.Id
                   }
@@ -1209,7 +1209,7 @@ Param (
                           domain = $VMhostsDomains.$VMHostItem
                           event_type = "HypervVmReplicaSample"
                           health = $getVmReplItem.Health
-                          hypervisorHost = $VMHostItem
+                          hypervisorHostname = $VMHostItem
                           lastReplicationTime = $getVmReplItem.LastReplicationTime
                           mode = $getVmReplItem.Mode
                           name = $getVmReplItem.Name
@@ -1285,7 +1285,7 @@ Param (
                           dhcpGuard = $vmNetAdapter.DhcpGuard
                           domain = $VMhostsDomains.$outVmHost
                           event_type = "HypervNetworkAdapterSample"
-                          hypervisorHost = $vmNetAdapter.ComputerName
+                          hypervisorHostname = $vmNetAdapter.ComputerName
                           id = ($vmNetAdapter.Id -replace '[^\\]+\\', '').ToLower()
                           ipAddress = $outVmNetAdapterNR
                           ipAddresses = $outVmNetAdapterIP
@@ -1325,7 +1325,7 @@ Param (
                           domain = $VMhostsDomains.$VMHostItem
                           event_type = "HypervVmDiskSample"
                           fragmentationPercentage = $vmDisk.FragmentationPercentage
-                          hypervisorHost = $VMHostItem
+                          hypervisorHostname = $VMHostItem
                           name = $ptDiskName
                           path = $vmPTDisk.Path
                           type = $vmPTDisk.ControllerType
@@ -1404,7 +1404,7 @@ Param (
                                   event_type = "HypervVmDiskSample"
                                   format = $vmDiffDisk.VhdFormat
                                   fragmentationPercentage = $vmDiffDisk.FragmentationPercentage
-                                  hypervisorHost = $VMHostItem
+                                  hypervisorHostname = $VMHostItem
                                   isDiffDisk = $true
                                   name = $vmDiffDiskName
                                   path = $vmDiffDisk.Path
@@ -1447,7 +1447,7 @@ Param (
                           event_type = "HypervVmDiskSample"
                           format = $vmDisk.VhdFormat
                           fragmentationPercentage = $vmDisk.FragmentationPercentage
-                          hypervisorHost = $VMHostItem
+                          hypervisorHostname = $VMHostItem
                           isDiffDisk = $true
                           name = $vmDiskName
                           path = $vmDisk.Path
@@ -1469,7 +1469,7 @@ Param (
                   event_type = "HypervVmSample"
                   generation = $VM.Generation
                   hasCheckpoint = $outVmCheckpoint
-                  hypervisorHost = $VMHostItem
+                  hypervisorHostname = $VMHostItem
                   integrationServicesState = $VM.IntegrationServicesState
                   integrationServicesVersion = [string]$VM.integrationServicesVersion
                   isClustered = $VM.IsClustered
@@ -1603,7 +1603,7 @@ Param (
                                   diskState = $outDiskState
                                   domain = $getCluster.Domain
                                   event_type = "HypervClusteredDiskSample"
-                                  hypervisorHost = $clusterDisk.OwnerNode
+                                  hypervisorHostname = $clusterDisk.OwnerNode
                                   name = $clusterDisk.Name
                                   quarumPath = $msClusterData.QuorumPath
                                   quorumPathLetter = $quorumPathLetter
@@ -1664,7 +1664,7 @@ Param (
                                   diskState = $outDiskState
                                   domain = $getCluster.Domain
                                   event_type = "HypervClusteredDiskSample"
-                                  hypervisorHost = $clusterDisk.OwnerNode
+                                  hypervisorHostname = $clusterDisk.OwnerNode
                                   name = $clusterDisk.Name
                                   quarumPath = $msClusterData.QuorumPath
                                   quorumPathLetter = $quorumPathLetter
@@ -1746,7 +1746,7 @@ Param (
                                   diskState = $outDiskState
                                   domain = $getCluster.Domain
                                   event_type = "HypervClusteredDiskSample"
-                                  hypervisorHost = $clusterDisk.OwnerNode
+                                  hypervisorHostname = $clusterDisk.OwnerNode
                                   name = $clusterDisk.Name
                                   quarumPath = $msClusterData.QuorumPath
                                   quorumPathLetter = $quorumPathLetter
@@ -1826,7 +1826,7 @@ Param (
                               diskState = $outDiskState
                               domain = $getCluster.Domain
                               event_type = "HypervClusteredDiskSample"
-                              hypervisorHost = $clusterDisk.OwnerNode
+                              hypervisorHostname = $clusterDisk.OwnerNode
                               name = $clusterDisk.Name
                               quarumPath = $msClusterData.QuorumPath
                               quorumPathLetter = $quorumPathLetter
@@ -1851,7 +1851,7 @@ Param (
                       diskState = $outDiskState
                       domain = $getCluster.Domain
                       event_type = "HypervClusteredDiskSample"
-                      hypervisorHost = $clusterDisk.OwnerNode
+                      hypervisorHostname = $clusterDisk.OwnerNode
                       name = $clusterDisk.Name
                       quarumPath = $msClusterData.QuorumPath
                       quorumPathLetter = $quorumPathLetter
@@ -1937,7 +1937,7 @@ Param (
                       domain = $outDomain
                       event_type = "HypervHostLogicalDiskSample"
                       fileSystem = $logicalDisk.FileSystem
-                      hypervisorHost = $computerName
+                      hypervisorHostname = $computerName
                       logicalDiskUsage = $logicalDiskUsage
                       logicalToDiskPartition = $logicalToDiskPartition
                       msftDiskId = $msftDiskId
