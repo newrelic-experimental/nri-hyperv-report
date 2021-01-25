@@ -10,6 +10,8 @@ On-Host Integration for New Relic Infrastructure to collect inventory and health
 
 ## Requirements
 
+* New Relic Infrastructure Agent for Windows must be installed.
+
 ### Hyper-V Targets (Clustered or Standalone)
   * Active Directory domain membership
   * Supported Operating Systems
