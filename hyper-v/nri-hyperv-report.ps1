@@ -3,9 +3,7 @@
 
 <#
 	.SYNOPSIS
-
 		nri-hyperv-report.ps1 - HyperV reporting for New Relic Infrastructure
-
     Collects inventory and resource usage of yper-V Cluster or Standalone environments.
 
 		Requirements:
@@ -135,33 +133,24 @@
         * State
         * Configuration resource problems (i.e. offline)
 
-	.PARAMETER  Cluster
-
+	.PARAMETER Cluster
 		A single Hyper-V Cluster name.
 
-	.PARAMETER  VMHost
-
+	.PARAMETER VMHost
 		A single standalone Hyper-V Host name or an array of standalone Hyper-V Host names
 
-	.PARAMETER  LogFilePath
-
+	.PARAMETER LogFilePath
 		Log file path. Default: Script working directory
 
   .PARAMETER LogLevel
-
     Log Level. Default: INFO. Available levels: [NONE, ERROR, WARNING, INFO, DEBUG]
 
   .PARAMETER WriteToNRI
-
     Write to New Relic Infrastructure. Sends logs to stderr and only NRI JSON output to stdout. Default: $true
 
 	.NOTES
-
 		Adapted from Hyper-V Capacity Report:
     http://wiki.webperfect.ch/index.php?title=Hyper-V:_Capacity_Report
-
-	.LINK
-
 #>
 
 #endregion Help
@@ -196,6 +185,7 @@ Param (
                 Mandatory=$false,
                 HelpMessage='Log Level (NONE|ERROR|WARNING|INFO|DEBUG). Default: INFO')]
                 [string]$LogLevel = "INFO",
+
     [parameter(
                 Mandatory=$False,
                 HelpMessage='Check for and install prerequisites. Default: $false')]
@@ -1176,7 +1166,7 @@ Param (
                           clusterMonitored = $outVmNetAdapterClusterMonitored
                           dhcpGuard = $vmNetAdapter.DhcpGuard
                           domain = $VMhostsDomains.$outVmHost
-                          event_type = "HypervNetworkAdapterSample"
+                          event_type = "HypervVmNetworkAdapterSample"
                           hypervisorHostname = $vmNetAdapter.ComputerName
                           id = ($vmNetAdapter.Id -replace '[^\\]+\\', '').ToLower()
                           ipAddress = $outVmNetAdapterNR
