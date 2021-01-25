@@ -293,6 +293,7 @@ Param (
         # All messages except "SPACE" and "NEWRELIC" get labeled
         if($msgLevelNum -gt 1) {
 		$TimeStamp = Get-Date -Format "dd.MMM.yyyy HH:mm:ss"
+          $TimeStamp = Get-Date -Format "dd.MMM.yyyy HH:mm:ss"
           $Message = ("[" + $MsgLevel + "]").PadRight(10,' ') + " - $TimeStamp - $Message"
         }
 
@@ -487,8 +488,7 @@ Param (
 
 #endregion Variables
 
-#region Initializing, Prereq Check & Installer
-#--------------------------------------------
+#region Initialization
 
   if($WriteToLog -eq $true) {
     # Log file check and write subject line
@@ -506,127 +506,8 @@ Param (
         sPrint -MsgLevel "INFO" -Message "Logging started: $LogFile"
     }
   }
-  # RHE: Import Hyper-V Module 1.1 (Windows 10 or Server 2016 higher to Server 2012 R2 or older)
-  if (Get-Module Hyper-V -ListAvailable | ? {$_.Version -eq "1.1"}) {
-      Remove-Module Hyper-V -ErrorAction SilentlyContinue
-      Import-Module Hyper-V -RequiredVersion 1.1
-  }
 
-  $thisOsVersion = $null
-  $thisOsName = $null
-  $thisOs = sGet-Wmi -CompName $env:COMPUTERNAME -Namespace root\Cimv2 -Class Win32_OperatingSystem -Property Version,Caption
-
-  if ($thisOs[1] -eq 1) {
-      $thisOsName = $thisOs[0].Caption
-      $thisOsVersion = $thisOs[0].Version
-  } else {
-      sPrint -MsgLevel "ERROR" -Message "Error getting OS Version for $($env:COMPUTERNAME): $($thisOsVersion[0])"
-      sPrint -MsgLevel "ERROR" -Message "Script terminated!"
-      Break
-  }
-
-  if($FirstRun) {
-
-    # Controls for runtime environment operating system version, Hyper-V PowerShell and Clustering PowerShell modules
-    sPrint -MsgLevel "INFO" -Message "Checking prerequisites to run script on the $($env:COMPUTERNAME)..."
-
-    if ($thisOsVersion) {
-        if (($thisOsVersion -like "6.2*") -or ($thisOsVersion -like "6.3*") -or ($thisOsVersion -like "10.0*")) {
-            if ($thisOsName -like "Microsoft Windows 8*") {
-                sPrint -MsgLevel "DEBUG" -Message "$($env:COMPUTERNAME): Operating system is supported as script runtime environment."
-
-                # Check Hyper-V PowerShell
-                if ((Get-WindowsOptionalFeature -FeatureName Microsoft-Hyper-V-Management-PowerShell -Online).State -eq "Enabled") {
-                    sPrint -MsgLevel "DEBUG" -Message "$($env:COMPUTERNAME): Hyper-V PowerShell Module is OK."
-                }
-                else {
-                    sPrint -MsgLevel "ERROR" -Message "$($env:COMPUTERNAME): Hyper-V PowerShell Module is not found. Please enable manually and run this script again. You can use `"Turn Windows features on or off`" to enable `"Hyper-V Module for Windows PowerShell`"."
-                    sPrint -MsgLevel "ERROR" -Message "Script terminated!"
-                    Break
-                }
-
-                # Check Failover Cluster PowerShell
-                if ($Cluster) {
-                    if (Get-Hotfix -ID KB2693643 -ErrorAction SilentlyContinue) {
-                        if ((Get-WindowsOptionalFeature -FeatureName RemoteServerAdministrationTools-Features-Clustering -Online).State -eq "Enabled") {
-                            sPrint -MsgLevel "DEBUG" -Message "$($env:COMPUTERNAME): Failover Clustering PowerShell Module is OK."
-                        }
-                        else {
-                            sPrint -MsgLevel "ERROR" -Message "$($env:COMPUTERNAME): Failover Clustering PowerShell Module is not found. Please enable manually and run this script again. You can use `"Turn Windows features on or off`" to enable `"Failover Clustering Tools`"."
-                            sPrint -MsgLevel "ERROR" -Message "Script terminated!"
-                            Break
-                        }
-                    }
-                    else {
-                        sPrint -MsgLevel "ERROR" -Message "$($env:COMPUTERNAME): Remote Server Administration Tools (RSAT) is not found. Please download (KB2693643) and install manually and run this script again."
-                        sPrint -MsgLevel "ERROR" -Message "Script terminated!"
-                        Break
-                    }
-                }
-            }
-            else {
-                sPrint -MsgLevel "DEBUG" -Message "$($env:COMPUTERNAME): Operating system is supported as script runtime environment."
-
-                # Check Hyper-V PowerShell
-                if ((Get-WindowsFeature -ComputerName $env:COMPUTERNAME -Name "Hyper-V-PowerShell").Installed) {
-                    sPrint -MsgLevel "DEBUG" -Message "$($env:COMPUTERNAME): Hyper-V PowerShell Module is OK."
-                }
-                else {
-                    sPrint -MsgLevel "WARNING" -Message "$($env:COMPUTERNAME): Hyper-V PowerShell Module is not found."
-                    sPrint -MsgLevel "WARNING" -Message "$($env:COMPUTERNAME): Installing Hyper-V PowerShell Module... "
-                    Start-Sleep -Seconds $SleepTime
-                    Add-WindowsFeature -Name "Hyper-V-PowerShell" -ErrorAction SilentlyContinue | Out-Null
-
-                    if ((Get-WindowsFeature -ComputerName $env:COMPUTERNAME -Name "Hyper-V-PowerShell").Installed) {
-                        sPrint -MsgLevel "INFO" -Message "$($env:COMPUTERNAME): Hyper-V PowerShell Module is OK."
-                    }
-                    else {
-                        sPrint -MsgLevel "ERROR" -Message "$($env:COMPUTERNAME): Hyper-V PowerShell Module could not be installed. Please install it manually."
-                        sPrint -MsgLevel "ERROR" -Message "Script terminated!"
-                        Break
-                    }
-                }
-
-                # Check Failover Cluster PowerShell
-                if ($Cluster) {
-                    if ((Get-WindowsFeature -ComputerName $env:COMPUTERNAME -Name "RSAT-Clustering-PowerShell").Installed)
-                    {
-                        sPrint -MsgLevel "DEBUG" -Message "$($env:COMPUTERNAME): Failover Clustering PowerShell Module is OK."
-                    }
-                    else {
-                        sPrint -MsgLevel "WARNING" -Message "$($env:COMPUTERNAME): Failover Clustering PowerShell Module is not found."
-                        sPrint -MsgLevel "WARNING" -Message "$($env:COMPUTERNAME): Installing Failover Clustering PowerShell Module..."
-                        Start-Sleep -Seconds $SleepTime
-                        Add-WindowsFeature -Name "RSAT-Clustering-PowerShell" | Out-Null
-
-                        if ((Get-WindowsFeature -ComputerName $env:COMPUTERNAME -Name "RSAT-Clustering-PowerShell").Installed) {
-                            sPrint -MsgLevel "INFO" -Message "$($env:COMPUTERNAME): Failover Clustering PowerShell Module is OK."
-                        }
-                        else {
-                            sPrint -MsgLevel "ERROR" -Message "$($env:COMPUTERNAME): Failover Clustering PowerShell Module could not be installed. Please install it manually."
-                            sPrint -MsgLevel "ERROR" -Message "Script terminated!"
-                            Break
-                        }
-                    }
-                }
-            }
-        }
-        else {
-            sPrint -MsgLevel "ERROR" -Message "$($env:COMPUTERNAME): Incompatible operating system version detected. Supported operating systems are Windows Server 2012 and Windows Server 2012 R2."
-            sPrint -MsgLevel "ERROR" -Message "Script terminated!"
-            Break
-        }
-    } else {
-        sPrint -MsgLevel "ERROR" -Message "$($env:COMPUTERNAME): Could not detect operating system version."
-        sPrint -MsgLevel "ERROR" -Message "Script terminated!"
-        Break
-    }
-
-    sPrint -MsgLevel "ERROR" -Message "FirstRun successfully completed!"
-    Break
-  }
-
-  # Controls for some important prerequisites
+  # Requires VMHost or Cluster, but not both.
   if ((!$VMHost) -and (!$Cluster)) {
       sPrint -MsgLevel "ERROR" -Message "Hyper-V target parameter is missing. Use -Cluster or -VMHost parameter to define target."
       sPrint -MsgLevel "WARNING" -Message "For technical information, type: Get-Help .\Get-HyperVReport.ps1 -examples"
@@ -640,7 +521,15 @@ Param (
       Break
   }
 
-#endregion Prerequisities Check
+  # Import Hyper-V Module 1.1 (Windows 10 or Server 2016 higher to Server 2012 R2 or older)
+  $hyperVModuleVersion = 1.1
+  if (Get-Module Hyper-V -ListAvailable | ? {$_.Version -eq "$hyperVModuleVersion"}) {
+      sPrint -MsgLevel "INFO" -Message "Using Hyper-V $hyperVModuleVersion Module."
+      Remove-Module Hyper-V -ErrorAction SilentlyContinue
+      Import-Module Hyper-V -RequiredVersion $hyperVModuleVersion
+  }
+
+#endregion Initialization
 
 #region Gathering Hyper-V Host Information
 #-----------------------------------------
@@ -927,6 +816,7 @@ Param (
           domain = $vmHostGet.FullyQualifiedDomainName
           event_type = "HypervHostSample"
           hyperthreading = $htState
+          hypervisorHostname = $vmHostGet.ComputerName
           logicalProcessors = $vmHostLpCount
           manufacturer = $outVmHostComputerInfo.Manufacturer
           migrationEnabled = $vmHostGet.VirtualMachineMigrationEnabled
@@ -967,8 +857,9 @@ Param (
             event_type = "HypervHostSample"
             clusterName = $ClusterName
             domain = $VMhostsDomains.$VMhostIN
-            state = $outVmHostState
+            hypervisorHostname = $VMhostIN
             name = $VMhostIN
+            state = $outVmHostState
             vmHostErrMsg = $invalidVmHostMsg[$numb]
           }
           $vmHostEntityName = "hypervisor:" + $ClusterName + ":" + $VMhostIN
@@ -990,8 +881,9 @@ Param (
             event_type = "HypervHostSample"
             clusterName = $ClusterName
             domain = $VMhostsDomains.$downClusterNode
-            state = "Down or Unavailable"
+            hypervisorHostname = $downClusterNode
             name = $downClusterNode
+            state = "Down or Unavailable"
             vmHostErrMsg = $outErrMsg
           }
           $vmHostEntityName = "hypervisor:"  + $ClusterName + ":" + $downClusterNode

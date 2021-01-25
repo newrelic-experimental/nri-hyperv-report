@@ -1,0 +1,9 @@
+integrations:
+  - name: nri-hyperv-report
+    inventory_source: metadata/system
+    env:
+      Cluster: your-hyperv-cluster
+  - name: nri-hyperv-report
+    inventory_source: metadata/system
+    env:
+      Cluster: another-hyperv-cluster
