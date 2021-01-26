@@ -152,17 +152,32 @@ if($ConfigDomain -and $UseForClusters) {
   Write-Host " Generating config file for Clusters found on $ConfigDomain"
   $allClusters = Get-Cluster -Domain $ConfigDomain
   if($allClusters) {
-    Write-Host "   $($allClusters.length) Clusters discovered. Writing config file to $GeneratedConfigFile"
-    Clear-Content $GeneratedConfigFile -ErrorAction SilentlyContinue | Out-Null
 
+    Write-Host "   $($allClusters.length) Clusters discovered. Checking cluster reachability."
+    Clear-Content $GeneratedConfigFile -ErrorAction SilentlyContinue | Out-Null
     $outConfig = @("integrations:")
     foreach($thisCluster in $allClusters) {
-      $outConfig += "  - name: nri-hyperv-report"
-      $outConfig += "    interval: $RunInterval"
-      $outConfig += "    inventory_source: metadata/system"
-      $outConfig += "    env:"
-      $outConfig += "      Cluster: $($thisCluster.Name)"
+      $clusterErr = $null
+      Get-Cluster -Name $thisCluster.Name -ErrorVariable clusterErr -ErrorAction SilentlyContinue | Out-Null
+      if(!$clusterErr) {
+        Write-Host "   $thisCluster.Name was found in domain and is reachable. Added to $GeneratedConfigFile."
+        $outConfig += "  - name: nri-hyperv-report"
+        $outConfig += "    interval: $RunInterval"
+        $outConfig += "    inventory_source: metadata/system"
+        $outConfig += "    env:"
+        $outConfig += "      Cluster: $($thisCluster.Name)"
+      } else {
+        Write-Warning "   $thisCluster.Name was found in domain, but is unreachable. Error: $($error[0].Exception.Message)"
+        Write-Warning "   Added but commented-out in $GeneratedConfigFile."
+        $outConfig += "`#  - name: nri-hyperv-report"
+        $outConfig += "`#    interval: $RunInterval"
+        $outConfig += "`#    inventory_source: metadata/system"
+        $outConfig += "`#    env:"
+        $outConfig += "`#      Cluster: $($thisCluster.Name)"
+      }
     }
+
+    Write-Host "   Writing discovered Clusters to $GeneratedConfigFile"
     foreach($outLine in $outConfig) {
       Add-Content -Path $GeneratedConfigFile -Value $outLine
     }
