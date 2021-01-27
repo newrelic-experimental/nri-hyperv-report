@@ -51,6 +51,11 @@ Param (
 
     [parameter(
                 Mandatory=$false,
+                HelpMessage='File name for log file. Only used if not reporting to New Relic. Default: nri-hyperv-report.log')]
+                [string]$LogFileName = "nri-hyperv-report.log",
+
+    [parameter(
+                Mandatory=$false,
                 HelpMessage='Write to New Relic Infrastructure ($true/$false). Default: $true')]
                 [bool]$WriteToNRI = $true,
 
@@ -149,7 +154,6 @@ Param (
       if($logLevelNum -ge $msgLevelNum) {
         switch($msgLevelNum) {
           -1 {
-            $logOut = $false
             $nriStdErr = $false
             $nriStdOut = $true
             $stamp = $false
@@ -176,6 +180,7 @@ Param (
           default {}
         }
 
+        # All messages except "SPACE" and "NEWRELIC" get labeled
         if($stamp) {
           $TimeStamp = Get-Date -Format "dd.MMM.yyyy HH:mm:ss"
           $Message = ("[" + $MsgLevel + "]").PadRight(10,' ') + " - $TimeStamp - $Message"
@@ -355,13 +360,13 @@ Param (
 #region Variables
 #----------------
 
-  # Logging enabled by default
-  [bool]$WriteToLog = $true
-  if($LogLevel -eq "NONE" -Or $WriteToNRI -eq $true) {
-    $WriteToLog = $false
+  # Logging disabled by default, enabled for debug Zonly.
+  [bool]$WriteToLog = $false
+  if($LogLevel -eq "DEBUG" -Or $WriteToNRI -eq $true) {
+    $WriteToLog = $true
   }
 
-  $LogFile = $LogFilePath + "\" + "ScriptLog" + ".txt"
+  $LogFile = $LogFilePath + "\" + $LogFileName
 
   $DefaultFGColor = (get-host).ui.rawui.ForegroundColor
 
@@ -479,7 +484,7 @@ Param (
                 $clusterOsVersion = ($getClusterOwnerNode.MajorVersion).ToString() + "." + ($getClusterOwnerNode.MinorVersion).ToString()
 
                 if (($clusterOsVersion -like "6.2") -or ($clusterOsVersion -like "6.3") -or ($clusterOsVersion -like "10.0*")) {
-                    $isHypervFeatureInstalled = sGet-Wmi -CompName hyperv-hv-1 -Namespace root\CIMv2 -Class Win32_ServerFeature -Filter "Name='Hyper-V'"
+                    $isHypervFeatureInstalled = sGet-Wmi -CompName $clusterOwnerHostName -Namespace root\CIMv2 -Class Win32_ServerFeature -Filter "Name='Hyper-V'"
                     if ($isHypervFeatureInstalled[1] -eq 1) {
                         sPrint -MsgLevel "DEBUG" -Message "Operating system version and Hyper-V role on the cluster owner node is OK."
                         $VMHosts = $ClusterNodes
