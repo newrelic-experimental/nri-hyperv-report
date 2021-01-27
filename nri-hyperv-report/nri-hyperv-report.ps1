@@ -138,39 +138,60 @@ Param (
 
       $hostOut = $true
       $logOut = $true
+      $nriStdOut = $false
+      $nriStdErr = $true
+      $stamp = $true
+
       $msgTitle = $null
       $msgColor = $DefaultFGColor
-      $logLevelNum = $LogLevels.($LogLevel.ToUpper())
-      $msgLevelNum = $LogLevels.($MsgLevel.ToUpper())
+      $logLevelNum = sConvert-LogLevel -LogLevelStr $LogLevel
+      $msgLevelNum = sConvert-LogLevel -LogLevelStr $MsgLevel
       if($logLevelNum -ge $msgLevelNum) {
         switch($msgLevelNum) {
-          -1 {$logOut = $false}
-          1 {$Message = ""}
-          2 {$msgColor = 'Red'}
-          3 {$msgColor = 'Yellow'}
-          4 {$msgColor = 'Green'}
-          5 {$hostOut = $false}
+          -1 {
+            $logOut = $false
+            $nriStdErr = $false
+            $nriStdOut = $true
+            $stamp = $false
+          }
+          1 {
+            $Message = ""
+            $logOut = $false
+            $nriStdErr = $false
+            $nriStdOut = $false
+            $stamp = $false
+          }
+          2 {
+            $msgColor = 'Red'
+          }
+          3 {
+            $msgColor = 'Yellow'
+          }
+          4 {
+            $msgColor = 'Green'
+          }
+          5 {
+            $hostOut = $false
+          }
           default {}
         }
 
-        # All messages except "SPACE" and "NEWRELIC" get labeled
-        if($msgLevelNum -gt 1) {
-		$TimeStamp = Get-Date -Format "dd.MMM.yyyy HH:mm:ss"
+        if($stamp) {
           $TimeStamp = Get-Date -Format "dd.MMM.yyyy HH:mm:ss"
           $Message = ("[" + $MsgLevel + "]").PadRight(10,' ') + " - $TimeStamp - $Message"
         }
 
-        if($hostOut -And !$WriteToNRI) {
+        if($WriteToNRI) {
+          if($nriStdOut) {
+            Write-Output $Message
+          } elseif($nriStdErr) {
+            Write-StdErr $Message
+          }
+        } elseif($hostOut) {
           Write-Host $Message -ForegroundColor $msgColor
-        } elseif (($msgLevelNum -eq -1) -And $WriteToNRI) {
-		Write-Output $Message
-	  }
-
-	  if(($msgLevelNum -ne -1) -And $WriteToNRI) {
-          Write-StdErr $Message
         }
 
-        if($WriteToLog -And ($logOut -Or ($logLevelNum -eq 5))) {
+        if($WriteToLog -And $logOut) {
           Add-Content -Path $LogFile -Value $Message
         }
       }
@@ -193,6 +214,22 @@ Param (
 			[void] $outFunc.Invoke($lines -join "`r`n")
 		}
 	}
+
+  Function sConvert-LogLevel {
+
+      Param ([string]$LogLevelStr)
+
+      switch($LogLevelStr.ToUpper()) {
+        "NEWRELIC" {Return -1 }
+        "NONE" { Return 0 }
+        "SPACE" { Return 1 }
+        "ERROR" { Return 2 }
+        "WARNING" { Return 3 }
+        "INFO" { Return 4 }
+        "DEBUG" { Return 5 }
+        default { Return 4 }
+      }
+  }
 
   # Convert BusType Value to BusType Name
   Function sConvert-BusTypeName {
@@ -287,10 +324,14 @@ Param (
       events = $EmptyArray
     }
 
-    $global:NRIData += $thisData
+    Return $thisData
   }
 
   Function sWriteToNRI {
+
+    param(
+        [PSObject[]]$Data=@()
+    )
 
     if(!$WriteToNRI) {
       Return
@@ -301,7 +342,7 @@ Param (
       name = "com.newrelic.hyperv.report"
       integration_version = "0.1.0"
       protocol_version = 3
-      data = $global:NRIData
+      data = $data
     }
 
     $payload = ConvertTo-Json -InputObject $inputObj -Depth 100 -Compress
@@ -313,16 +354,6 @@ Param (
 
 #region Variables
 #----------------
-
-  $LogLevels = @{
-      NEWRELIC = -1
-      NONE = 0
-      SPACE = 1
-      ERROR = 2
-      WARNING = 3
-      INFO = 4
-      DEBUG = 5
-  }
 
   # Logging enabled by default
   [bool]$WriteToLog = $true
@@ -336,7 +367,7 @@ Param (
 
   $progressPreference = "Continue"
 
-  $global:NRIData = @()
+  $NRIData = @()
   $DefaultEntityType = "hyperv"
   $EmptyArray = @()
 
@@ -362,7 +393,7 @@ Param (
             sPrint -MsgLevel "INFO" -Message "Logging started: $LogFile"
         } else {
             $WriteToLog = $false
-            sPrint -MsgLevel "WARNING" -Message "Unable to create the log file. Script will continue without logging..."
+            sPrint -MsgLevel "ERROR" -Message "Unable to create the log file. Script will continue without logging..."
         }
     } else {
         sPrint -MsgLevel "DEBUG" -Message "----- Start -----"
@@ -373,13 +404,11 @@ Param (
   # Requires VMHost or Cluster, but not both.
   if ((!$VMHost) -and (!$Cluster)) {
       sPrint -MsgLevel "ERROR" -Message "Hyper-V target parameter is missing. Use -Cluster or -VMHost parameter to define target."
-      sPrint -MsgLevel "WARNING" -Message "For technical information, type: Get-Help .\Get-HyperVReport.ps1 -examples"
       sPrint -MsgLevel "ERROR" -Message "Script terminated!"
       Break
   }
   if (($VMHost) -and ($Cluster)) {
       sPrint -MsgLevel "ERROR" -Message "-Cluster and -VMHost parameters can not be used together."
-      sPrint -MsgLevel "WARNING" -Message "For technical information, type: Get-Help .\Get-HyperVReport.ps1 -examples"
       sPrint -MsgLevel "ERROR" -Message "Script terminated!"
       Break
   }
@@ -450,7 +479,8 @@ Param (
                 $clusterOsVersion = ($getClusterOwnerNode.MajorVersion).ToString() + "." + ($getClusterOwnerNode.MinorVersion).ToString()
 
                 if (($clusterOsVersion -like "6.2") -or ($clusterOsVersion -like "6.3") -or ($clusterOsVersion -like "10.0*")) {
-                    if ((Get-WindowsFeature -ComputerName $clusterOwnerHostName -Name "Hyper-V").Installed) {
+                    $isHypervFeatureInstalled = sGet-Wmi -CompName hyperv-hv-1 -Namespace root\CIMv2 -Class Win32_ServerFeature -Filter "Name='Hyper-V'"
+                    if ($isHypervFeatureInstalled[1] -eq 1) {
                         sPrint -MsgLevel "DEBUG" -Message "Operating system version and Hyper-V role on the cluster owner node is OK."
                         $VMHosts = $ClusterNodes
 
@@ -560,7 +590,7 @@ Param (
     }
 
     if (!$VMHosts) {
-        sPrint -MsgLevel "WARNING" "No valid Hyper-V hosts for reporting."
+        sPrint -MsgLevel "WARNING" -Messge "No valid Hyper-V hosts for reporting."
         sPrint -MsgLevel "ERROR" -Message "Script terminated!"
         Break
     }
@@ -703,7 +733,7 @@ Param (
           "vm.total" = $vmHostVmCount
         }
         $vmHostEntityName = "hypervisor:" + $ClusterName + ":" + $vmHostGet.ComputerName
-        sAddToNRIData -entityName $vmHostEntityName -metrics $vmHostMetrics
+        $NRIData += sAddToNRIData -entityName $vmHostEntityName -metrics $vmHostMetrics
     }
 
     # Add offline or unsupported standalone hosts
@@ -726,7 +756,7 @@ Param (
             vmHostErrMsg = $invalidVmHostMsg[$numb]
           }
           $vmHostEntityName = "hypervisor:" + $ClusterName + ":" + $VMhostIN
-          sAddToNRIData -entityName $vmHostEntityName -metrics $vmHostMetrics
+          $NRIData += sAddToNRIData -entityName $vmHostEntityName -metrics $vmHostMetrics
 
           $numb = $numb + 1
         }
@@ -750,7 +780,7 @@ Param (
             vmHostErrMsg = $outErrMsg
           }
           $vmHostEntityName = "hypervisor:"  + $ClusterName + ":" + $downClusterNode
-          sAddToNRIData -entityName $vmHostEntityName -metrics $vmHostMetrics
+          $NRIData += sAddToNRIData -entityName $vmHostEntityName -metrics $vmHostMetrics
         }
     }
 
@@ -797,7 +827,7 @@ Param (
                     id = $offlineVmConfig.Id
                   }
                   $vmEntityName = "vm:" + $VMHostItem + ":" + $offlineVmConfig.Name
-                  sAddToNRIData -entityName $vmEntityName -metrics $vmMetrics
+                  $NRIData += sAddToNRIData -entityName $vmEntityName -metrics $vmMetrics
                 }
             }
         }
@@ -974,7 +1004,7 @@ Param (
                           state = $getVmReplItem.State
                           vmName = $outVmName
                         }
-                        sAddToNRIData -metrics $vmReplicaMetrics
+                        $NRIData += sAddToNRIData -metrics $vmReplicaMetrics
                     }
                 }
 
@@ -1057,7 +1087,7 @@ Param (
                           vmId = $vmNetAdapter.VMId
                           vmName = $outVmName
                         }
-                        sAddToNRIData -metrics $VMNetworkAdapterMetrics
+                        $NRIData += sAddToNRIData -metrics $VMNetworkAdapterMetrics
                     }
                 }
 
@@ -1086,7 +1116,7 @@ Param (
                           type = $vmPTDisk.ControllerType
                           vmName = $outVmName
                         }
-                        sAddToNRIData -metrics $vmDiskMetrics
+                        $NRIData += sAddToNRIData -metrics $vmDiskMetrics
                     }
                 }
 
@@ -1168,7 +1198,7 @@ Param (
                                   "size.max" = $vmDiffDisk.Size
                                   "size.used" = $vmDiffDisk.FileSize
                                 }
-                                sAddToNRIData -metrics $vmDiskMetrics
+                                $NRIData += sAddToNRIData -metrics $vmDiskMetrics
 
                             }
                             Until (($parentPath -eq $null) -or ($parentPath -eq ""))
@@ -1212,7 +1242,7 @@ Param (
                           "size.used" = $vmDisk.FileSize
 
                         }
-                        sAddToNRIData -metrics $vmDiskMetrics
+                        $NRIData += sAddToNRIData -metrics $vmDiskMetrics
                     }
                 }
 
@@ -1242,7 +1272,7 @@ Param (
                   "mem.min" = $VM.MemoryMinimum
                 }
                 $vmEntityName = "vm:" + $VMHostItem + ":" + $outVmName
-                sAddToNRIData -entityName $vmEntityName -metrics $vmMetrics
+                $NRIData += sAddToNRIData -entityName $vmEntityName -metrics $vmMetrics
             }
         }
         # Error
@@ -1373,7 +1403,7 @@ Param (
                                   "volume.used" = $outVolumeUsedSpace
                                   "volume.percentFree" = $outVolumeFreePercent
                                 }
-                                sAddToNRIData -metrics $vmDiskMetrics
+                                $NRIData += sAddToNRIData -metrics $vmDiskMetrics
                             }
                         }
                         else
@@ -1435,7 +1465,7 @@ Param (
                                   "volume.used" = $outVolumeUsedSpace
                                   "volume.percentFree" = $outVolumeFreePercent
                                 }
-                                sAddToNRIData -metrics $vmDiskMetrics
+                                $NRIData += sAddToNRIData -metrics $vmDiskMetrics
                             }
                         }
                     }
@@ -1550,9 +1580,9 @@ Param (
                                 }
 
                                 # New Relic Infrastructure output - Clustered Disk
-                                sAddToNRIData -metrics $vmDiskMetrics
+                                $NRIData += sAddToNRIData -metrics $vmDiskMetrics
 
-                                if(assignedPT) {
+                                if($assignedPT) {
                                   Break
                                 }
                             }
@@ -1595,7 +1625,7 @@ Param (
                               "volume.used" = $outVolumeUsedSpace
                               "volume.percentFree" = $outVolumeFreePercent
                             }
-                            sAddToNRIData -metrics $vmDiskMetrics
+                            $NRIData += sAddToNRIData -metrics $vmDiskMetrics
                         }
                     }
                 }
@@ -1611,7 +1641,7 @@ Param (
                       quarumPath = $msClusterData.QuorumPath
                       quorumPathLetter = $quorumPathLetter
                     }
-                    sAddToNRIData -metrics $vmDiskMetrics
+                    $NRIData += sAddToNRIData -metrics $vmDiskMetrics
                 }
             }
         }
@@ -1709,7 +1739,7 @@ Param (
                       "physical.allocated" = $msftDisk.AllocatedSize
                       "physical.size" = $msftDisk.Size
                     }
-                    sAddToNRIData -metrics $vmDiskMetrics
+                    $NRIData += sAddToNRIData -metrics $vmDiskMetrics
                 }
             }
             elseif ($logicalDisks[1] -eq 2)
@@ -1761,14 +1791,14 @@ Param (
       "vm.vhd.used" = $ovUsedVmVHD
     }
     $clusterEntityName = "cluster:"  + $ClusterName
-    sAddToNRIData -entityName $clusterEntityName -metrics $clusterMetrics
+    $NRIData += sAddToNRIData -entityName $clusterEntityName -metrics $clusterMetrics
 
 #endregion
 
 #region Write to NRI and Peace Out
 #---------------------------------
 
-    sWriteToNRI
+    sWriteToNRI -Data $NRIData
     sPrint -MsgLevel "INFO" "Completed!"
     sPrint -MsgLevel "DEBUG" -Message "----- End   -----"
 
