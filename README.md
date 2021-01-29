@@ -1,6 +1,6 @@
 [![New Relic Experimental header](https://github.com/newrelic/opensource-website/raw/master/src/images/categories/Experimental.png)](https://opensource.newrelic.com/oss-category/#new-relic-experimental)
 
-# nri-hyperv-report
+# New Relic integration for Microsoft Hyper-V reporting - nri-hyperv-report
 
 On-Host Integration for New Relic Infrastructure to collect inventory and health data about Hyper-V Clusters, Hosts, VMs, and their constituents.
 
