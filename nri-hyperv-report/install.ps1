@@ -19,7 +19,8 @@ Param (
 )
 
 $IntegrationName = "nri-hyperv-report"
-$RunInterval = "300s"
+$RunInterval = "3600s"
+$timeOutTime = "600s"
 
 Write-Host "## Installing $IntegrationName ##"
 
@@ -166,6 +167,7 @@ if($ConfigDomain -and $UseForClusters) {
         Add-Content -Path $GeneratedConfigFile -Value "  - name: nri-hyperv-report"
         Add-Content -Path $GeneratedConfigFile -Value "    interval: $RunInterval"
         Add-Content -Path $GeneratedConfigFile -Value "    inventory_source: metadata/system"
+        Add-Content -Path $GeneratedConfigFile -Value "    timeout: $timeOutTime"
         Add-Content -Path $GeneratedConfigFile -Value "    env:"
         Add-Content -Path $GeneratedConfigFile -Value "      Cluster: $($thisCluster.Name)"
       } else {

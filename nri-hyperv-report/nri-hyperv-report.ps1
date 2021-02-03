@@ -329,13 +329,15 @@ Param (
       events = $EmptyArray
     }
 
-    Return $thisData
+    #region Write to NRI and Peace Out
+    sWriteToNRI -Data $thisData
+
   }
 
   Function sWriteToNRI {
 
     param(
-        [PSObject[]]$Data=@()
+        [PSObject]$Data
     )
 
     if(!$WriteToNRI) {
@@ -347,7 +349,7 @@ Param (
       name = "com.newrelic.hyperv.report"
       integration_version = "0.1.0"
       protocol_version = 3
-      data = $data
+      data = @($Data)
     }
 
     $payload = ConvertTo-Json -InputObject $inputObj -Depth 100 -Compress
@@ -738,7 +740,7 @@ Param (
           "vm.total" = $vmHostVmCount
         }
         $vmHostEntityName = "hypervisor:" + $ClusterName + ":" + $vmHostGet.ComputerName
-        $NRIData += sAddToNRIData -entityName $vmHostEntityName -metrics $vmHostMetrics
+        sAddToNRIData -entityName $vmHostEntityName -metrics $vmHostMetrics
     }
 
     # Add offline or unsupported standalone hosts
@@ -761,7 +763,7 @@ Param (
             vmHostErrMsg = $invalidVmHostMsg[$numb]
           }
           $vmHostEntityName = "hypervisor:" + $ClusterName + ":" + $VMhostIN
-          $NRIData += sAddToNRIData -entityName $vmHostEntityName -metrics $vmHostMetrics
+          sAddToNRIData -entityName $vmHostEntityName -metrics $vmHostMetrics
 
           $numb = $numb + 1
         }
@@ -785,7 +787,7 @@ Param (
             vmHostErrMsg = $outErrMsg
           }
           $vmHostEntityName = "hypervisor:"  + $ClusterName + ":" + $downClusterNode
-          $NRIData += sAddToNRIData -entityName $vmHostEntityName -metrics $vmHostMetrics
+          sAddToNRIData -entityName $vmHostEntityName -metrics $vmHostMetrics
         }
     }
 
@@ -832,7 +834,7 @@ Param (
                     id = $offlineVmConfig.Id
                   }
                   $vmEntityName = "vm:" + $VMHostItem + ":" + $offlineVmConfig.Name
-                  $NRIData += sAddToNRIData -entityName $vmEntityName -metrics $vmMetrics
+                  sAddToNRIData -entityName $vmEntityName -metrics $vmMetrics
                 }
             }
         }
@@ -1009,7 +1011,7 @@ Param (
                           state = $getVmReplItem.State
                           vmName = $outVmName
                         }
-                        $NRIData += sAddToNRIData -metrics $vmReplicaMetrics
+                        sAddToNRIData -metrics $vmReplicaMetrics
                     }
                 }
 
@@ -1092,7 +1094,7 @@ Param (
                           vmId = $vmNetAdapter.VMId
                           vmName = $outVmName
                         }
-                        $NRIData += sAddToNRIData -metrics $VMNetworkAdapterMetrics
+                        sAddToNRIData -metrics $VMNetworkAdapterMetrics
                     }
                 }
 
@@ -1121,7 +1123,7 @@ Param (
                           type = $vmPTDisk.ControllerType
                           vmName = $outVmName
                         }
-                        $NRIData += sAddToNRIData -metrics $vmDiskMetrics
+                        sAddToNRIData -metrics $vmDiskMetrics
                     }
                 }
 
@@ -1161,6 +1163,8 @@ Param (
                                 }
                             }
 
+                            $parentPath = $vmDisk.ParentPath
+
                             # Differencing disk loop
                             Do
                             {
@@ -1168,7 +1172,7 @@ Param (
                                 $vmDiffDiskName = $vmDiffDisk.Path.Split('\')[-1]
 
                                 # Checkpoint label
-                                if ($vmDiskDiff.Path.EndsWith(".avhdx",1))
+                                if ($vmDiffDisk.Path.EndsWith(".avhdx",1))
                                 {
                                     if (($cpNumber -ne 0) -or ($cpNumber -ne $null))
                                     {
@@ -1203,8 +1207,8 @@ Param (
                                   "size.max" = $vmDiffDisk.Size
                                   "size.used" = $vmDiffDisk.FileSize
                                 }
-                                $NRIData += sAddToNRIData -metrics $vmDiskMetrics
-
+                                sAddToNRIData -metrics $vmDiskMetrics
+                                $parentPath = $vmDiffDisk.ParentPath
                             }
                             Until (($parentPath -eq $null) -or ($parentPath -eq ""))
                         }
@@ -1247,7 +1251,7 @@ Param (
                           "size.used" = $vmDisk.FileSize
 
                         }
-                        $NRIData += sAddToNRIData -metrics $vmDiskMetrics
+                        sAddToNRIData -metrics $vmDiskMetrics
                     }
                 }
 
@@ -1277,7 +1281,7 @@ Param (
                   "mem.min" = $VM.MemoryMinimum
                 }
                 $vmEntityName = "vm:" + $VMHostItem + ":" + $outVmName
-                $NRIData += sAddToNRIData -entityName $vmEntityName -metrics $vmMetrics
+                sAddToNRIData -entityName $vmEntityName -metrics $vmMetrics
             }
         }
         # Error
@@ -1408,7 +1412,7 @@ Param (
                                   "volume.used" = $outVolumeUsedSpace
                                   "volume.percentFree" = $outVolumeFreePercent
                                 }
-                                $NRIData += sAddToNRIData -metrics $vmDiskMetrics
+                                sAddToNRIData -metrics $vmDiskMetrics
                             }
                         }
                         else
@@ -1470,7 +1474,7 @@ Param (
                                   "volume.used" = $outVolumeUsedSpace
                                   "volume.percentFree" = $outVolumeFreePercent
                                 }
-                                $NRIData += sAddToNRIData -metrics $vmDiskMetrics
+                                sAddToNRIData -metrics $vmDiskMetrics
                             }
                         }
                     }
@@ -1585,7 +1589,7 @@ Param (
                                 }
 
                                 # New Relic Infrastructure output - Clustered Disk
-                                $NRIData += sAddToNRIData -metrics $vmDiskMetrics
+                                sAddToNRIData -metrics $vmDiskMetrics
 
                                 if($assignedPT) {
                                   Break
@@ -1630,7 +1634,7 @@ Param (
                               "volume.used" = $outVolumeUsedSpace
                               "volume.percentFree" = $outVolumeFreePercent
                             }
-                            $NRIData += sAddToNRIData -metrics $vmDiskMetrics
+                            sAddToNRIData -metrics $vmDiskMetrics
                         }
                     }
                 }
@@ -1646,7 +1650,7 @@ Param (
                       quarumPath = $msClusterData.QuorumPath
                       quorumPathLetter = $quorumPathLetter
                     }
-                    $NRIData += sAddToNRIData -metrics $vmDiskMetrics
+                    sAddToNRIData -metrics $vmDiskMetrics
                 }
             }
         }
@@ -1744,7 +1748,7 @@ Param (
                       "physical.allocated" = $msftDisk.AllocatedSize
                       "physical.size" = $msftDisk.Size
                     }
-                    $NRIData += sAddToNRIData -metrics $vmDiskMetrics
+                    sAddToNRIData -metrics $vmDiskMetrics
                 }
             }
             elseif ($logicalDisks[1] -eq 2)
@@ -1773,6 +1777,7 @@ Param (
     # New Relic Infrastructure output - Cluster overview
     $clusterMetrics = @{
       backupInProgress = $getCluster.BackupInProgress
+      clusterName = $ClusterName
       domain = $getCluster.Domain
       event_type = "HypervClusterSample"
       functionalLevel = $getCluster.ClusterFunctionalLevel
@@ -1796,14 +1801,10 @@ Param (
       "vm.vhd.used" = $ovUsedVmVHD
     }
     $clusterEntityName = "cluster:"  + $ClusterName
-    $NRIData += sAddToNRIData -entityName $clusterEntityName -metrics $clusterMetrics
+    sAddToNRIData -entityName $clusterEntityName -metrics $clusterMetrics
 
 #endregion
 
-#region Write to NRI and Peace Out
-#---------------------------------
-
-    sWriteToNRI -Data $NRIData
     sPrint -MsgLevel "INFO" "Completed!"
     sPrint -MsgLevel "DEBUG" -Message "----- End   -----"
 
