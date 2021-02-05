@@ -1203,7 +1203,7 @@ Param (
                                   name = $vmDiffDiskName
                                   path = $vmDiffDisk.Path
                                   type = $vmDiffDisk.VhdType
-                                  vmName = $VM.ComputerName
+                                  vmName = $outVmName
                                   "size.max" = $vmDiffDisk.Size
                                   "size.used" = $vmDiffDisk.FileSize
                                 }
@@ -1224,7 +1224,7 @@ Param (
                                 VhdType   = $vmDisk.VhdType
                                 VhdFormat = $vmDisk.VhdFormat
                                 Attached  = $vmDisk.Attached
-                                VMName    = $VM.VMName
+                                VMName    = $outVmName
                             }
 
                             # Create PSCustom object
@@ -1246,7 +1246,7 @@ Param (
                           name = $vmDiskName
                           path = $vmDisk.Path
                           type = $vmDisk.VhdType
-                          vmName = $VM.ComputerName
+                          vmName = $outVmName
                           "size.max" = $vmDisk.Size
                           "size.used" = $vmDisk.FileSize
 
