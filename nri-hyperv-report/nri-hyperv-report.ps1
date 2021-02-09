@@ -72,11 +72,29 @@ Param (
 
 #endregion Script Parameters
 
+#region Filters
+#--------------
+Filter Import-CimXml
+{
+    $CimXml = [Xml]$_
+    $CimObj = New-Object -TypeName System.Object
+    foreach ($CimProperty in $CimXml.SelectNodes("/INSTANCE/PROPERTY"))
+    {
+        if ($CimProperty.Name -eq "Name" -or $CimProperty.Name -eq "Data")
+        {
+            $CimObj | Add-Member -MemberType NoteProperty -Name $CimProperty.NAME -Value $CimProperty.VALUE
+        }
+    }
+    $CimObj
+}
+
+#endregion Filters
+
 #region Functions
 #----------------
 
   # Get WMI data
-  function sGet-Wmi {
+  Function Get-Wmi-Custom {
 
       param (
           [Parameter(Mandatory = $true)]
@@ -118,14 +136,14 @@ Param (
       $ResultCode = "1"
       Try {
           # $wmiCommand
-          $wmiResult = iex $wmiCommand
+          $wmiResult = Invoke-Expression $wmiCommand
       } Catch {
           $wmiResult = $_.Exception.Message
           $ResultCode = "0"
       }
 
       # If wmiResult is null
-      if ($wmiResult -eq $null) {
+      if ($null -eq $wmiResult) {
           $wmiResult = "Result is null"
           $ResultCode = "2"
       }
@@ -134,7 +152,7 @@ Param (
   }
 
   # Write Log
-  Function sPrint {
+  Function Write-ScriptLog {
 
       param(
           [string]$MsgLevel = "INFO",
@@ -147,10 +165,9 @@ Param (
       $nriStdErr = $true
       $stamp = $true
 
-      $msgTitle = $null
       $msgColor = $DefaultFGColor
-      $logLevelNum = sConvert-LogLevel -LogLevelStr $LogLevel
-      $msgLevelNum = sConvert-LogLevel -LogLevelStr $MsgLevel
+      $logLevelNum = Convert-LogLevel -LogLevelStr $LogLevel
+      $msgLevelNum = Convert-LogLevel -LogLevelStr $MsgLevel
       if($logLevelNum -ge $msgLevelNum) {
         switch($msgLevelNum) {
           -1 {
@@ -215,12 +232,12 @@ Param (
 			[void] $outFunc.Invoke($InputObject.ToString())
 		} else {
 			[string[]] $lines = @()
-			$Input | % { $lines += $_.ToString() }
+			$Input | ForEach-Object { $lines += $_.ToString() }
 			[void] $outFunc.Invoke($lines -join "`r`n")
 		}
 	}
 
-  Function sConvert-LogLevel {
+  Function Convert-LogLevel {
 
       Param ([string]$LogLevelStr)
 
@@ -237,7 +254,7 @@ Param (
   }
 
   # Convert BusType Value to BusType Name
-  Function sConvert-BusTypeName {
+  Function Convert-BusTypeName {
 
     Param ([Byte] $BusTypeValue)
 
@@ -264,7 +281,7 @@ Param (
   }
 
   # Convert Cluster Disk State Value to Name
-  Function sConvert-ClusterDiskState {
+  Function Convert-ClusterDiskState {
 
       Param ([Byte] $StateValue)
 
@@ -283,7 +300,7 @@ Param (
   }
 
   # Convert BusType Value to BusType Name
-  Function sConvert-DiskPartitionStyle {
+  Function Convert-DiskPartitionStyle {
 
       Param ([Byte] $PartitionStyleValue)
 
@@ -295,7 +312,7 @@ Param (
   }
 
   # Add Event to data to be output for New Relic Infrastructure
-  Function sAddToNRIData {
+  Function Publish-MetricsToNRI {
 
     param(
         [string]$entityName=$null,
@@ -344,7 +361,7 @@ Param (
       Return
     }
 
-    sPrint -MsgLevel "DEBUG" -Message "Writing to NR:"
+    Write-ScriptLog -MsgLevel "DEBUG" -Message "Writing to NR:"
     $inputObj = @{
       name = "com.newrelic.hyperv.report"
       integration_version = "0.1.0"
@@ -353,7 +370,7 @@ Param (
     }
 
     $payload = ConvertTo-Json -InputObject $inputObj -Depth 100 -Compress
-    sPrint -MsgLevel "NEWRELIC" -Message $payload
+    Write-ScriptLog -MsgLevel "NEWRELIC" -Message $payload
 
   }
 
@@ -374,16 +391,15 @@ Param (
 
   $progressPreference = "Continue"
 
-  $NRIData = @()
   $DefaultEntityType = "hyperv"
   $EmptyArray = @()
 
   # Print MSG
-  sPrint -MsgLevel "SPACE"
-  sPrint -MsgLevel "INFO" -Message "Started! Hyper-V Reporting Script (Version 1.9)"
+  Write-ScriptLog -MsgLevel "SPACE"
+  Write-ScriptLog -MsgLevel "INFO" -Message "Started! Hyper-V Reporting Script (Version 1.9)"
 
   if ($WriteToNRI -eq $true) {
-    sPrint -MsgLevel "INFO" -Message "Will report JSON version of report to stdout for New Relic Infrastructure."
+    Write-ScriptLog -MsgLevel "INFO" -Message "Will report JSON version of report to stdout for New Relic Infrastructure."
     $progressPreference = "SilentlyContinue"
   }
 
@@ -396,34 +412,34 @@ Param (
     if (!(Test-Path -Path $LogFile)) {
         New-Item -Path $LogFile -ItemType file -Force -ErrorAction SilentlyContinue | Out-Null
         if (Test-Path -Path $LogFile) {
-            sPrint -MsgLevel "DEBUG" -Message "----- Start -----"
-            sPrint -MsgLevel "INFO" -Message "Logging started: $LogFile"
+            Write-ScriptLog -MsgLevel "DEBUG" -Message "----- Start -----"
+            Write-ScriptLog -MsgLevel "INFO" -Message "Logging started: $LogFile"
         } else {
             $WriteToLog = $false
-            sPrint -MsgLevel "ERROR" -Message "Unable to create the log file. Script will continue without logging..."
+            Write-ScriptLog -MsgLevel "ERROR" -Message "Unable to create the log file. Script will continue without logging..."
         }
     } else {
-        sPrint -MsgLevel "DEBUG" -Message "----- Start -----"
-        sPrint -MsgLevel "INFO" -Message "Logging started: $LogFile"
+        Write-ScriptLog -MsgLevel "DEBUG" -Message "----- Start -----"
+        Write-ScriptLog -MsgLevel "INFO" -Message "Logging started: $LogFile"
     }
   }
 
   # Requires VMHost or Cluster, but not both.
   if ((!$VMHost) -and (!$Cluster)) {
-      sPrint -MsgLevel "ERROR" -Message "Hyper-V target parameter is missing. Use -Cluster or -VMHost parameter to define target."
-      sPrint -MsgLevel "ERROR" -Message "Script terminated!"
+      Write-ScriptLog -MsgLevel "ERROR" -Message "Hyper-V target parameter is missing. Use -Cluster or -VMHost parameter to define target."
+      Write-ScriptLog -MsgLevel "ERROR" -Message "Script terminated!"
       Break
   }
   if (($VMHost) -and ($Cluster)) {
-      sPrint -MsgLevel "ERROR" -Message "-Cluster and -VMHost parameters can not be used together."
-      sPrint -MsgLevel "ERROR" -Message "Script terminated!"
+      Write-ScriptLog -MsgLevel "ERROR" -Message "-Cluster and -VMHost parameters can not be used together."
+      Write-ScriptLog -MsgLevel "ERROR" -Message "Script terminated!"
       Break
   }
 
   # Import Hyper-V Module 1.1 (Windows 10 or Server 2016 higher to Server 2012 R2 or older)
   $hyperVModuleVersion = 1.1
-  if (Get-Module Hyper-V -ListAvailable | ? {$_.Version -eq "$hyperVModuleVersion"}) {
-      sPrint -MsgLevel "INFO" -Message "Using Hyper-V $hyperVModuleVersion Module."
+  if (Get-Module Hyper-V -ListAvailable | Where-Object {$_.Version -eq "$hyperVModuleVersion"}) {
+      Write-ScriptLog -MsgLevel "INFO" -Message "Using Hyper-V $hyperVModuleVersion Module."
       Remove-Module Hyper-V -ErrorAction SilentlyContinue
       Import-Module Hyper-V -RequiredVersion $hyperVModuleVersion
   }
@@ -454,31 +470,27 @@ Param (
         if (!$getClusterErr) {
             $ClusterName = $getCluster.Name
 
-            $hostTableCaption = "Cluster Nodes"
-            $volumeTableCaption = "Clustered Disks/Volumes"
+            Write-ScriptLog -MsgLevel "INFO" -Message "$($ClusterName) is accessible. Gathering Node information..."
+            Write-ScriptLog -MsgLevel "INFO" -Message "Checking prerequisites for Hyper-V Cluster reporting..."
 
-            sPrint -MsgLevel "INFO" -Message "$($ClusterName) is accessible. Gathering Node information..."
-
-            sPrint -MsgLevel "INFO" -Message "Checking prerequisites for Hyper-V Cluster reporting..."
-
-            $clusterNodesData = Get-ClusterNode -Cluster $ClusterName -ErrorAction SilentlyContinue | select Name,State
-            $ClusterNodes = ($clusterNodesData | where{$_.State -ne "Down"}).Name
-            $downClusterNodes = ($clusterNodesData | where{$_.State -eq "Down"}).Name
+            $clusterNodesData = Get-ClusterNode -Cluster $ClusterName -ErrorAction SilentlyContinue | Select-Object Name,State
+            $ClusterNodes = ($clusterNodesData | Where-Object {$_.State -ne "Down"}).Name
+            $downClusterNodes = ($clusterNodesData | Where-Object {$_.State -eq "Down"}).Name
             $ovTotalNode = ($clusterNodesData).Count
 
             if ($downClusterNodes) {
-                sPrint -MsgLevel "ERROR" "Unavailable or down Hyper-V Cluster Node(s): $downClusterNodes"
+                Write-ScriptLog -MsgLevel "ERROR" "Unavailable or down Hyper-V Cluster Node(s): $downClusterNodes"
             }
 
             if ($ClusterNodes) {
                 # Checking Cluster Owner Node OS version and Hyper-V role
-                $clusterOwnerHostName = sGet-Wmi -CompName $ClusterName -Namespace root\Cimv2 -Class  Win32_ComputerSystem -Property Name
+                $clusterOwnerHostName = Get-Wmi-Custom -CompName $ClusterName -Namespace root\Cimv2 -Class Win32_ComputerSystem -Property Name
                 if ($clusterOwnerHostName[1] -eq 1) {
                     $clusterOwnerHostName = $clusterOwnerHostName[0].Name
                 }
                 else {
-                    sPrint -MsgLevel "ERROR" -Message "$ClusterName`: $($clusterOwnerHostName[0])"
-                    sPrint -MsgLevel "ERROR" -Message "Script terminated!"
+                    Write-ScriptLog -MsgLevel "ERROR" -Message "$ClusterName`: $($clusterOwnerHostName[0])"
+                    Write-ScriptLog -MsgLevel "ERROR" -Message "Script terminated!"
                     Break
                 }
 
@@ -486,9 +498,9 @@ Param (
                 $clusterOsVersion = ($getClusterOwnerNode.MajorVersion).ToString() + "." + ($getClusterOwnerNode.MinorVersion).ToString()
 
                 if (($clusterOsVersion -like "6.2") -or ($clusterOsVersion -like "6.3") -or ($clusterOsVersion -like "10.0*")) {
-                    $isHypervFeatureInstalled = sGet-Wmi -CompName $clusterOwnerHostName -Namespace root\CIMv2 -Class Win32_ServerFeature -Filter "Name='Hyper-V'"
+                    $isHypervFeatureInstalled = Get-Wmi-Custom -CompName $clusterOwnerHostName -Namespace root\CIMv2 -Class Win32_ServerFeature -Filter "Name='Hyper-V'"
                     if ($isHypervFeatureInstalled[1] -eq 1) {
-                        sPrint -MsgLevel "DEBUG" -Message "Operating system version and Hyper-V role on the cluster owner node is OK."
+                        Write-ScriptLog -MsgLevel "DEBUG" -Message "Operating system version and Hyper-V role on the cluster owner node is OK."
                         $VMHosts = $ClusterNodes
 
                         # Clear
@@ -499,32 +511,32 @@ Param (
                         $clusterResourceData = Get-ClusterResource -Cluster $ClusterName
 
                         # Detect offline Virtual Machine Configuration resources
-                        $offlineVmConfigData = $clusterResourceData | where{($_.ResourceType -eq "Virtual Machine Configuration") -and ($_.State -ne "Online")}
+                        $offlineVmConfigData = $clusterResourceData | Where-Object {($_.ResourceType -eq "Virtual Machine Configuration") -and ($_.State -ne "Online")}
 
                         # For Cluster Overview
-                        $ovTotalVm = ($clusterResourceData | where{$_.ResourceType -eq "Virtual Machine"}).Count
+                        $ovTotalVm = ($clusterResourceData | Where-Object {$_.ResourceType -eq "Virtual Machine"}).Count
                     }
                     else {
-                        sPrint -MsgLevel "WARNING" -Message "Hyper-V role is not installed on $clusterOwnerHostName."
-                        sPrint -MsgLevel "ERROR" -Message "Script terminated!"
+                        Write-ScriptLog -MsgLevel "WARNING" -Message "Hyper-V role is not installed on $clusterOwnerHostName."
+                        Write-ScriptLog -MsgLevel "ERROR" -Message "Script terminated!"
                         Break
                     }
                 }
                 else {
-                    sPrint -MsgLevel "WARNING" -Message "$($ClusterName): Incompatible operating system version detected. Supported operating systems are Windows Server 2012 and Windows Server 2012 R2."
-                    sPrint -MsgLevel "ERROR" -Message "Script terminated!"
+                    Write-ScriptLog -MsgLevel "WARNING" -Message "$($ClusterName): Incompatible operating system version detected. Supported operating systems are Windows Server 2012 and Windows Server 2012 R2."
+                    Write-ScriptLog -MsgLevel "ERROR" -Message "Script terminated!"
                     Break
                 }
             }
             else {
-                sPrint -MsgLevel "ERROR" -Message "$ClusterName`: $($error[0].Exception.Message)"
-                sPrint -MsgLevel "ERROR" -Message "Script terminated!"
+                Write-ScriptLog -MsgLevel "ERROR" -Message "$ClusterName`: $($error[0].Exception.Message)"
+                Write-ScriptLog -MsgLevel "ERROR" -Message "Script terminated!"
                 Break
             }
         }
         else {
-            sPrint -MsgLevel "ERROR" -Message "$($ClusterName): $($error[0].Exception.Message)"
-            sPrint -MsgLevel "ERROR" -Message "Script terminated!"
+            Write-ScriptLog -MsgLevel "ERROR" -Message "$($ClusterName): $($error[0].Exception.Message)"
+            Write-ScriptLog -MsgLevel "ERROR" -Message "Script terminated!"
             Break
         }
     }
@@ -540,18 +552,16 @@ Param (
 
         [array]$invalidVmHost = $null
         [array]$invalidVmHostMsg = $null
-        $hostTableCaption = "Standalone Host(s)"
-        $volumeTableCaption = "Local Disks/Volumes"
 
-        sPrint -MsgLevel "INFO" -Message "Checking prerequisites for standalone Hyper-V host(s) reporting..."
+        Write-ScriptLog -MsgLevel "INFO" -Message "Checking prerequisites for standalone Hyper-V host(s) reporting..."
 
         foreach ($computerName in $Computers) {
-            $hvOs = sGet-Wmi -CompName $computerName -Namespace root\Cimv2 -Class Win32_OperatingSystem -Property Version
+            $hvOs = Get-Wmi-Custom -CompName $computerName -Namespace root\Cimv2 -Class Win32_OperatingSystem -Property Version
             $hvOsVersion = $null
             if ($hvOs[1] -eq 1) {
                 $hvOsVersion = $hvOsVersion[0].Version
             } else {
-                sPrint -MsgLevel "ERROR" -Message "$($computerName): $($hvOsVersion[0])"
+                Write-ScriptLog -MsgLevel "ERROR" -Message "$($computerName): $($hvOsVersion[0])"
                 $invalidVmHost += $computerName
                 $invalidVmHostMsg += $hvOsVersion[0]
                 Continue
@@ -560,36 +570,36 @@ Param (
             if ($hvOsVersion) {
                 if (($hvOsVersion -like "6.2*") -or ($hvOsVersion -like "6.3*") -or ($hvOsVersion -like "10.0*")) {
                     if ((Get-WindowsFeature -ComputerName $computerName -Name "Hyper-V").Installed) {
-                        $checkClusterMember = sGet-Wmi -CompName $computerName -Namespace root\MSCluster -Class MSCluster_Cluster -Property Name
+                        $checkClusterMember = Get-Wmi-Custom -CompName $computerName -Namespace root\MSCluster -Class MSCluster_Cluster -Property Name
                         if ($checkClusterMember[1] -eq 1)
                         {
-                            sPrint -MsgLevel "ERROR" -Message "$($computerName) is a member of a Hyper-V Cluster and didn't included in the VMHost list. Please use -Cluster parameter to report this node."
+                            Write-ScriptLog -MsgLevel "ERROR" -Message "$($computerName) is a member of a Hyper-V Cluster and didn't included in the VMHost list. Please use -Cluster parameter to report this node."
                             $invalidVmHost += $computerName
                             $invalidVmHostMsg += "This Node is a member of a cluster. Please use -Cluster parameter to report this node."
                         }
                         else
                         {
-                            sPrint -MsgLevel "DEBUG" -Message "$($computerName): Operating system version and Hyper-V role is OK."
+                            Write-ScriptLog -MsgLevel "DEBUG" -Message "$($computerName): Operating system version and Hyper-V role is OK."
                             $VMHosts += $computerName
                         }
                     }
                     else
                     {
-                        sPrint -MsgLevel "ERROR" -Message "$($computerName): Could not be added to the VMHost list because Hyper-V role is not installed."
+                        Write-ScriptLog -MsgLevel "ERROR" -Message "$($computerName): Could not be added to the VMHost list because Hyper-V role is not installed."
                         $invalidVmHost += $computerName
                         $invalidVmHostMsg += "Could not be added to the VMHost list because Hyper-V role is not installed"
                     }
                 }
                 else
                 {
-                    sPrint -MsgLevel "ERROR" -Message "$($computerName): Could not be added to the VMHost list because incompatible operating system version detected."
+                    Write-ScriptLog -MsgLevel "ERROR" -Message "$($computerName): Could not be added to the VMHost list because incompatible operating system version detected."
                     $invalidVmHost += $computerName
                     $invalidVmHostMsg += "Could not be added to the VMHost list because incompatible operating system version detected"
                 }
             }
             else
             {
-                sPrint -MsgLevel "ERROR" -Message "$($computerName): Could not be added to the VMHost list because operating system version could not be detected."
+                Write-ScriptLog -MsgLevel "ERROR" -Message "$($computerName): Could not be added to the VMHost list because operating system version could not be detected."
                 $invalidVmHost += $computerName
                 $invalidVmHostMsg += "Could not be added to the VMHost list because operating system version could not be detected"
             }
@@ -597,20 +607,20 @@ Param (
     }
 
     if (!$VMHosts) {
-        sPrint -MsgLevel "WARNING" -Messge "No valid Hyper-V hosts for reporting."
-        sPrint -MsgLevel "ERROR" -Message "Script terminated!"
+        Write-ScriptLog -MsgLevel "WARNING" -Messge "No valid Hyper-V hosts for reporting."
+        Write-ScriptLog -MsgLevel "ERROR" -Message "Script terminated!"
         Break
     }
 
     if ($Cluster) {
-        sPrint -MsgLevel "INFO" "Available Hyper-V Cluster Node(s) for reporting: $VMHosts"
+        Write-ScriptLog -MsgLevel "INFO" "Available Hyper-V Cluster Node(s) for reporting: $VMHosts"
     }
     else {
-        sPrint -MsgLevel "INFO" "Available Hyper-V Hypervisor(s) for reporting: $VMHosts"
+        Write-ScriptLog -MsgLevel "INFO" "Available Hyper-V Hypervisor(s) for reporting: $VMHosts"
     }
 
     # Print MSG
-    sPrint -MsgLevel "INFO" "Gathering Hyper-V Host information..."
+    Write-ScriptLog -MsgLevel "INFO" "Gathering Hyper-V Host information..."
 
     $ovUpNode, $ovTotalLP, $ovTotalMemory, $ovUsedMemory = 0
     $ovTotalVProc, $ovTotalVmMemory, $ovUsedVmMemory, $ovUsedVmVHD, $ovTotalVmVHD = 0
@@ -620,19 +630,16 @@ Param (
 
     foreach ($vmHostItem in $VMHosts) {
 
-        $chargerVMHostTable = $null
-        $vmHostData = $null
         $vmHostTotalVProc = 0
-        $vmHostVpLpRatio = 0
         $vmHostRunningClusVmCount= 0
         $vmHostGet = Get-VMHost -ComputerName $vmHostItem
         $vmHostVMs = Hyper-V\Get-VM -ComputerName $vmHostItem
-        $vmHostVmCount = $vmHostVMs.Count + ($offlineVmConfigData | where{$_.OwnerNode -eq "$vmHostItem"}).Count
-        $vmHostRunningVmCount = ($vmHostVMs | where{$_.State -eq "Running"}).Count
-        $vmHostRunningClusVmCount = ($vmHostVMs | where{($_.IsClustered -eq $true) -and ($_.State -eq "Running")}).Count
+        $vmHostVmCount = $vmHostVMs.Count + ($offlineVmConfigData | Where-Object {$_.OwnerNode -eq "$vmHostItem"}).Count
+        $vmHostRunningVmCount = ($vmHostVMs | Where-Object {$_.State -eq "Running"}).Count
+        $vmHostRunningClusVmCount = ($vmHostVMs | Where-Object {($_.IsClustered -eq $true) -and ($_.State -eq "Running")}).Count
         $vmHostRunningNonClusVmCount = $vmHostRunningVmCount - $vmHostRunningClusVmCount
-        $vmHostTotalVProc = (($vmHostVMs | where{(($_.State -eq "Running") -or ($_.State -eq "Paused"))}).ProcessorCount | Measure-Object -Sum).Sum
-        $vmHostClusVProc = (($vmHostVMs | where{(($_.State -eq "Running") -and ($_.IsClustered -eq $true)) -or (($_.State -eq "Paused") -and ($_.IsClustered -eq $true))}).ProcessorCount | Measure-Object -Sum).Sum
+        $vmHostTotalVProc = (($vmHostVMs | Where-Object {(($_.State -eq "Running") -or ($_.State -eq "Paused"))}).ProcessorCount | Measure-Object -Sum).Sum
+        $vmHostClusVProc = (($vmHostVMs | Where-Object {(($_.State -eq "Running") -and ($_.IsClustered -eq $true)) -or (($_.State -eq "Paused") -and ($_.IsClustered -eq $true))}).ProcessorCount | Measure-Object -Sum).Sum
         $vmHostWmiData = Get-WmiObject -ComputerName $vmHostItem -Class Win32_OperatingSystem
         $VMHostsOSVersions.add($vmHostItem, $vmHostWmiData.Version)
 
@@ -664,7 +671,7 @@ Param (
         $vmHostUptime = ([Management.ManagementDateTimeConverter]::ToDateTime($vmHostWmiData.LocalDateTime)) - ([Management.ManagementDateTimeConverter]::ToDateTime($vmHostWmiData.LastBootUpTime))
 
         # Processor socket and HT state
-        $processorData = sGet-Wmi -CompName $vmHostItem -Namespace root\CIMv2 -Class Win32_Processor -Property DeviceID,NumberOfCores,NumberOfLogicalProcessors
+        $processorData = Get-Wmi-Custom -CompName $vmHostItem -Namespace root\CIMv2 -Class Win32_Processor -Property DeviceID,NumberOfCores,NumberOfLogicalProcessors
         if ($processorData[1] -eq 1) {
             $socketCount = ($processorData[0] | ForEach-Object {$_.DeviceID} | select-object -unique).Count
             $coreCount = ($processorData[0].NumberOfCores | Measure-Object -Sum).Sum
@@ -696,8 +703,11 @@ Param (
         }
 
         # LP:VP Ratio
-        $vmHostVpLpRatioRaw = $vmHostTotalVProc / $vmHostLpCount
-        $vmHostVpLpRatio = ("{0:N2}" -f $vmHostVpLpRatioRaw).Replace(".00","")
+        if($vmHostLpCount -and $vmHostTotalVProc) {
+            $vmHostVpLpRatioRaw = $vmHostTotalVProc / $vmHostLpCount
+        } else {
+            $vmHostVpLpRatioRaw = 0
+        }
 
         # Computer and Processor Manufacturer/Model Info
         $outVmHostComputerInfo = gwmi -ComputerName $vmHostItem -Class Win32_ComputerSystem -Property BootupState,Domain,Manufacturer,Model,NumberOfLogicalProcessors,NumberOfProcessors,Status,TotalPhysicalMemory
@@ -710,37 +720,36 @@ Param (
         $outVmHostProcModel = $outVmHostProcModel.Replace("           "," ")
 
         # New Relic Infrastructure output - Host
-        $vmHostMetrics = @{
-          bootupState = $outVmHostComputerInfo.BootupState
-          clusterName = $ClusterName
-          domain = $vmHostGet.FullyQualifiedDomainName
-          event_type = "HypervHostSample"
-          hyperthreading = $htState
-          hypervisorHostname = $vmHostGet.ComputerName
-          logicalProcessors = $vmHostLpCount
-          manufacturer = $outVmHostComputerInfo.Manufacturer
-          migrationEnabled = $vmHostGet.VirtualMachineMigrationEnabled
-          model = $outVmHostComputerInfo.Model
-          name = $vmHostGet.ComputerName
-          osVersion = $VMHostsOSVersions.($vmHostGet.ComputerName)
-          processorModel = $outVmHostProcModel
-          processorSocketCount = $socketCount
-          state = $vmHostState
-          status = $outVmHostComputerInfo.Status
-          uptime = $vmHostUptime.TotalMilliseconds
-          virtualProcessors = $vmHostTotalVProc
-          vpLpRatio = ([math]::Round($vmHostVpLpRatioRaw,3))
-          "mem.free_percent" = $TotalFreeMemoryPercentage
-          "mem.free" = $TotalFreeMemory
-          "mem.total" = $TotalVisibleMemory
-          "mem.used" = $TotalUsedMemory
-          "vm.running.clustered" = $vmHostRunningClusVmCount
-          "vm.running.nonClustered" = $vmHostRunningNonClusVmCount
-          "vm.running.total" = $vmHostRunningVmCount
-          "vm.total" = $vmHostVmCount
-        }
         $vmHostEntityName = "hypervisor:" + $ClusterName + ":" + $vmHostGet.ComputerName
-        sAddToNRIData -entityName $vmHostEntityName -metrics $vmHostMetrics
+        Publish-MetricsToNRI -entityName $vmHostEntityName -metrics @{
+            bootupState = $outVmHostComputerInfo.BootupState
+            clusterName = $ClusterName
+            domain = $vmHostGet.FullyQualifiedDomainName
+            event_type = "HypervHostSample"
+            hyperthreading = $htState
+            hypervisorHostname = $vmHostGet.ComputerName
+            logicalProcessors = $vmHostLpCount
+            manufacturer = $outVmHostComputerInfo.Manufacturer
+            migrationEnabled = $vmHostGet.VirtualMachineMigrationEnabled
+            model = $outVmHostComputerInfo.Model
+            name = $vmHostGet.ComputerName
+            osVersion = $VMHostsOSVersions.($vmHostGet.ComputerName)
+            processorModel = $outVmHostProcModel
+            processorSocketCount = $socketCount
+            state = $vmHostState
+            status = $outVmHostComputerInfo.Status
+            uptime = $vmHostUptime.TotalMilliseconds
+            virtualProcessors = $vmHostTotalVProc
+            vpLpRatio = ([math]::Round($vmHostVpLpRatioRaw,3))
+            "mem.free_percent" = $TotalFreeMemoryPercentage
+            "mem.free" = $TotalFreeMemory
+            "mem.total" = $TotalVisibleMemory
+            "mem.used" = $TotalUsedMemory
+            "vm.running.clustered" = $vmHostRunningClusVmCount
+            "vm.running.nonClustered" = $vmHostRunningNonClusVmCount
+            "vm.running.total" = $vmHostRunningVmCount
+            "vm.total" = $vmHostVmCount
+        }
     }
 
     # Add offline or unsupported standalone hosts
@@ -748,24 +757,21 @@ Param (
     {
         $outVmHostState = "Inaccessible"
 
-        [bytle]$numb = 0
+        $invalidHostNum = 0
         ForEach ($VMhostIN in $invalidVmHost)
         {
-
           # New Relic Infrastructure output - Host (inaccessible)
-          $vmHostMetrics = @{
+          $vmHostEntityName = "hypervisor:" + $ClusterName + ":" + $VMhostIN
+          Publish-MetricsToNRI -entityName $vmHostEntityName -metrics @{
             event_type = "HypervHostSample"
             clusterName = $ClusterName
             domain = $VMhostsDomains.$VMhostIN
             hypervisorHostname = $VMhostIN
             name = $VMhostIN
             state = $outVmHostState
-            vmHostErrMsg = $invalidVmHostMsg[$numb]
+            vmHostErrMsg = $invalidVmHostMsg[$invalidHostNum]
           }
-          $vmHostEntityName = "hypervisor:" + $ClusterName + ":" + $VMhostIN
-          sAddToNRIData -entityName $vmHostEntityName -metrics $vmHostMetrics
-
-          $numb = $numb + 1
+          $invalidHostNum = $invalidHostNum + 1
         }
     }
 
@@ -777,7 +783,8 @@ Param (
         {
 
           # New Relic Infrastructure output - Host (down node)
-          $vmHostMetrics = @{
+          $vmHostEntityName = "hypervisor:" + $ClusterName + ":" + $downClusterNode
+          Publish-MetricsToNRI -entityName $vmHostEntityName -metrics @{
             event_type = "HypervHostSample"
             clusterName = $ClusterName
             domain = $VMhostsDomains.$downClusterNode
@@ -786,8 +793,6 @@ Param (
             state = "Down or Unavailable"
             vmHostErrMsg = $outErrMsg
           }
-          $vmHostEntityName = "hypervisor:"  + $ClusterName + ":" + $downClusterNode
-          sAddToNRIData -entityName $vmHostEntityName -metrics $vmHostMetrics
         }
     }
 
@@ -797,11 +802,10 @@ Param (
 #-------------------------------
 
     # Print MSG
-    sPrint -MsgLevel "INFO" "Gathering Virtual Machine information..."
+    Write-ScriptLog -MsgLevel "INFO" "Gathering Virtual Machine information..."
 
     # Generate Data Lines
     $cntVM = 0
-    $vmNoInTable = 0
     $ovRunningVm = 0
     $ovPausedVm = 0
 
@@ -812,18 +816,20 @@ Param (
 
         $getVMerr = $null
         $VMs = Hyper-V\Get-VM -ComputerName $VMHostItem -ErrorVariable getVMerr -ErrorAction SilentlyContinue
+ 		
         $vNetworkAdapters = Hyper-V\Get-VM -ComputerName $VMHostItem | Get-VMNetworkAdapter -ErrorAction SilentlyContinue
 
         # Offline Virtual Machine Configuration resources on this node
         if ($Cluster)
         {
-            $offlineVmConfigs = $offlineVmConfigData | where{$_.OwnerNode -eq "$VMHostItem"}
+            $offlineVmConfigs = $offlineVmConfigData | Where-Object {$_.OwnerNode -eq "$VMHostItem"}
             if ($offlineVmConfigs)
             {
                 ForEach ($offlineVmConfig in $offlineVmConfigs)
                 {
                   # New Relic Infrastructure output - VM
-                  $vmMetrics = @{
+                  $vmEntityName = "vm:" + $VMHostItem + ":" + $offlineVmConfig.Name
+                  Publish-MetricsToNRI -entityName $vmEntityName -metrics @{
                     event_type = "HypervVmSample"
                     domain = $VMhostsDomains.($offlineVmConfig.OwnerNode)
                     state = $offlineVmConfig.State
@@ -833,8 +839,6 @@ Param (
                     name = $offlineVmConfig.Name
                     id = $offlineVmConfig.Id
                   }
-                  $vmEntityName = "vm:" + $VMHostItem + ":" + $offlineVmConfig.Name
-                  sAddToNRIData -entityName $vmEntityName -metrics $vmMetrics
                 }
             }
         }
@@ -846,30 +850,25 @@ Param (
 
             foreach ($VM in $VMs)
             {
-                $highL = $false
-                $chargerVmTable = $null
-                $chargerVmMemoryTable = $null
-                $outVmReplReplicaServer = $null
-                $outVmReplFrequency = $null
-
-                # Table TR Color
-                if([bool]!($vmNoInTable%2))
-                {
-                   #Even or Zero
-                   $vmTableTrBgColor = ""
-                }
-                else
-                {
-                   #Odd
-                   $vmTableTrBgColor = "#F9F9F9"
-                }
-
-                # Name and Config Path
+                # Name, Config Path & State
                 $outVmName = $VM.VMName
                 $outVmPath = $VM.ConfigurationLocation
-
-                # VM State
                 $outVmState = $VM.State
+
+                # OS Info
+                # Initialized to "Unknown" if not found.
+                $outVmOsName = "Unknown" 
+                $outVmOsVersion = "Unknown"
+
+                if($outVmState -eq "Running") {
+                    $VMPath = 'Msvm_ComputerSystem.CreationClassName="Msvm_ComputerSystem",Name="' + $VM.VMId + '"'
+                    $VMAssociators = Get-WmiObject -ComputerName $VMHostItem -Namespace root\virtualization\v2 -Query "Associators of {$VMPath} Where AssocClass=Msvm_SystemDevice ResultClass=Msvm_KvpExchangeComponent"
+                    if(($null -ne $VMAssociators) -and ($null -ne $VMAssociators.GuestIntrinsicExchangeItems)) {
+                        $VMOSData = $VMAssociators.GuestIntrinsicExchangeItems | Import-CimXml
+                        $outVmOsName = ($VMOSData | Where-Object {$_.Name -eq "OSName"}).Data
+                        $outVmOsVersion = ($VMOSData | Where-Object {$_.Name -eq "OSVersion"}).Data
+                    }
+                }
 
                 # IsClustered Yes or No
                 if ($VM.IsClustered -eq $True)
@@ -890,7 +889,6 @@ Param (
 
                     # Clustered VM State
                     $getClusVMerr = $null
-                    $outVmIsClustered = "Yes"
                     $clusVmState = (Get-ClusterResource -Cluster $ClusterName -VMId $VM.VMId -ErrorAction SilentlyContinue -ErrorVariable getClusVMerr).State
 
                     if ($getClusVMerr)
@@ -924,60 +922,15 @@ Param (
                         $outVmState = $clusVmState
                     }
                 }
-                else
-                {
-                    $outVmIsClustered = "No"
-                }
 
                 # Owner Host
                 $outVmHost = $VM.ComputerName
-
-                # vCPU
-                $outVmCPU = $VM.ProcessorCount
-
-                # IS State, Version and Color
-                if ($VM.IntegrationServicesState -eq "Up to date")
-                {
-                    $outVmIs = "UpToDate"
-                    $outVmIsVer = $VM.IntegrationServicesVersion
-                }
-                elseif ($VM.IntegrationServicesState -eq "Update required")
-                {
-                    $outVmIs = "UpdateRequired"
-                    $outVmIsVer = $VM.IntegrationServicesVersion
-                }
-                else
-                {
-                    if ($vm.State -eq "Running")
-                    {
-                        if ($VM.IntegrationServicesVersion -eq "6.2.9200.16433")
-                        {
-                            $outVmIs = "UpToDate"
-                            $outVmIsVer = $VM.IntegrationServicesVersion
-                        }
-                        elseif ($VM.IntegrationServicesVersion -eq $null)
-                        {
-                            $outVmIs = "NotDetected"
-                            $outVmIsVer = "NotDetected"
-                        }
-                        else
-                        {
-                            $outVmIs = "MayBeRequired"
-                            $outVmIsVer = $VM.IntegrationServicesVersion
-                        }
-                    }
-                    else
-                    {
-                        $outVmIs = "NotDetected"
-                        $outVmIsVer = "NotDetected"
-                    }
-                }
 
                 # Checkpoints
                 if ($VM.ParentSnapshotId)
                 {
                     $outVmCheckpoint = "Yes"
-                    $vmCheckpointCount = (Get-VMSnapshot -ComputerName $VM.ComputerName -VMName $VM.Name).Count
+                    $outVmCheckpointCount = (Get-VMSnapshot -ComputerName $VM.ComputerName -VMName $VM.Name).Count
                 }
                 else
                 {
@@ -997,26 +950,25 @@ Param (
                         }
 
                         # New Relic Infrastructure output - VM Network Adapater
-                        $vmReplicaMetrics = @{
-                          domain = $VMhostsDomains.$VMHostItem
-                          event_type = "HypervVmReplicaSample"
-                          health = $getVmReplItem.Health
-                          hypervisorHostname = $VMHostItem
-                          lastReplicationTime = $getVmReplItem.LastReplicationTime
-                          mode = $getVmReplItem.Mode
-                          name = $getVmReplItem.Name
-                          primaryServer = $getVmReplItem.PrimaryServer
-                          relationshipType = $getVmReplItem.RelationshipType
-                          replicaServer = $getVmReplItem.ReplicaServer
-                          state = $getVmReplItem.State
-                          vmName = $outVmName
+                        Publish-MetricsToNRI -metrics @{
+                            domain = $VMhostsDomains.$VMHostItem
+                            event_type = "HypervVmReplicaSample"
+                            health = $getVmReplItem.Health
+                            hypervisorHostname = $VMHostItem
+                            lastReplicationTime = $getVmReplItem.LastReplicationTime
+                            mode = $getVmReplItem.Mode
+                            name = $getVmReplItem.Name
+                            primaryServer = $getVmReplItem.PrimaryServer
+                            relationshipType = $getVmReplItem.RelationshipType
+                            replicaServer = $getVmReplItem.ReplicaServer
+                            state = $getVmReplItem.State
+                            vmName = $outVmName
                         }
-                        sAddToNRIData -metrics $vmReplicaMetrics
                     }
                 }
 
                 # Network Adapters
-                $vmNetAdapters = ($vNetworkAdapters | where{$_.VMId -eq $VM.VMId})
+                $vmNetAdapters = ($vNetworkAdapters | Where-Object {$_.VMId -eq $VM.VMId})
                 if ($vmNetAdapters)
                 {
                     foreach ($vmNetAdapter in $vmNetAdapters)
@@ -1072,36 +1024,34 @@ Param (
                         }
 
                         # New Relic Infrastructure output - VM Network Adapater
-                        $vmNetworkAdapterMetrics = @{
-                          clusterMonitored = $outVmNetAdapterClusterMonitored
-                          dhcpGuard = $vmNetAdapter.DhcpGuard
-                          domain = $VMhostsDomains.$outVmHost
-                          event_type = "HypervVmNetworkAdapterSample"
-                          hypervisorHostname = $vmNetAdapter.ComputerName
-                          id = ($vmNetAdapter.Id -replace '[^\\]+\\', '').ToLower()
-                          ipAddress = $outVmNetAdapterNR
-                          ipAddresses = $outVmNetAdapterIP
-                          isConnected = $vmNetAdapter.Connected
-                          macAddress = $vmNetAdapter.MacAddress
-                          macIsDynamic = $vmNetAdapter.DynamicMacAddressEnabled
-                          name = $vmNetAdapter.Name
-                          portMirroringMode = $vmNetAdapter.PortMirroringMode
-                          routerGuard = $vmNetAdapter.RouterGuard
-                          switchId = $vmNetAdapter.SwitchId
-                          switchName = $vmNetAdapter.SwitchName
-                          type = $outVMNetAdapterType
-                          vlan = $vmNetAdapter.VlanSetting.AccessVlanId
-                          vmId = $vmNetAdapter.VMId
-                          vmName = $outVmName
+                        Publish-MetricsToNRI -metrics @{
+                            clusterMonitored = $outVmNetAdapterClusterMonitored
+                            dhcpGuard = $vmNetAdapter.DhcpGuard
+                            domain = $VMhostsDomains.$outVmHost
+                            event_type = "HypervVmNetworkAdapterSample"
+                            hypervisorHostname = $vmNetAdapter.ComputerName
+                            id = ($vmNetAdapter.Id -replace '[^\\]+\\', '').ToLower()
+                            ipAddress = $outVmNetAdapterNR
+                            ipAddresses = $outVmNetAdapterIP
+                            isConnected = $vmNetAdapter.Connected
+                            macAddress = $vmNetAdapter.MacAddress
+                            macIsDynamic = $vmNetAdapter.DynamicMacAddressEnabled
+                            name = $vmNetAdapter.Name
+                            portMirroringMode = $vmNetAdapter.PortMirroringMode
+                            routerGuard = $vmNetAdapter.RouterGuard
+                            switchId = $vmNetAdapter.SwitchId
+                            switchName = $vmNetAdapter.SwitchName
+                            type = $outVMNetAdapterType
+                            vlan = $vmNetAdapter.VlanSetting.AccessVlanId
+                            vmId = $vmNetAdapter.VMId
+                            vmName = $outVmName
                         }
-                        sAddToNRIData -metrics $VMNetworkAdapterMetrics
                     }
                 }
 
                 # Disks
-                $getVhdErr = $null
                 $vmDisks = Get-VHD -ComputerName $VMHostItem -VMId $vm.VMId -ErrorAction SilentlyContinue -ErrorVariable getVhdErr
-                $vmPTDisks = Get-VMHardDiskDrive -ComputerName $VMHostItem -VMname $vm.name | where{$_.Path -like "Disk*"}
+                $vmPTDisks = Get-VMHardDiskDrive -ComputerName $VMHostItem -VMname $vm.name | Where-Object {$_.Path -like "Disk*"}
 
                 # Pass-through
                 if ($vmPTDisks)
@@ -1113,17 +1063,16 @@ Param (
                         $ptDiskName = "Pass-through-disk-" + $vmPTDiskNo
 
                         # New Relic Infrastructure output - VM Pass-Through Disk
-                        $vmDiskMetrics = @{
-                          domain = $VMhostsDomains.$VMHostItem
-                          event_type = "HypervVmDiskSample"
-                          fragmentationPercentage = $vmDisk.FragmentationPercentage
-                          hypervisorHostname = $VMHostItem
-                          name = $ptDiskName
-                          path = $vmPTDisk.Path
-                          type = $vmPTDisk.ControllerType
-                          vmName = $outVmName
+                        Publish-MetricsToNRI -metrics @{
+                            domain = $VMhostsDomains.$VMHostItem
+                            event_type = "HypervVmDiskSample"
+                            fragmentationPercentage = $vmDisk.FragmentationPercentage
+                            hypervisorHostname = $VMHostItem
+                            name = $ptDiskName
+                            path = $vmPTDisk.Path
+                            type = $vmPTDisk.ControllerType
+                            vmName = $outVmName
                         }
-                        sAddToNRIData -metrics $vmDiskMetrics
                     }
                 }
 
@@ -1146,17 +1095,17 @@ Param (
                         $activeVhdFileSize = $vmDisk.FileSize
 
                         # Get Controller Type
-                        $vmDiskControllerType = (Get-VMHardDiskDrive -ComputerName $VMHostItem -VMName $vm.VMName | where{$_.Path -eq $vmDisk.Path}).ControllerType
+                        $vmDiskControllerType = (Get-VMHardDiskDrive -ComputerName $VMHostItem -VMName $vm.VMName | Where-Object {$_.Path -eq $vmDisk.Path}).ControllerType
 
                         # If differencing disks exist
                         if ($vmDisk.ParentPath)
                         {
                             # Checkpoint label
-                            $cpNumber = $vmCheckpointCount
+                            $cpNumber = $outVmCheckpointCount
 
                             if ($vmDisk.Path.EndsWith(".avhdx",1))
                             {
-                                if (($cpNumber -ne 0) -or ($cpNumber -ne $null))
+                                if (($cpNumber -ne 0) -or ($null -ne $cpNumber))
                                 {
                                     $vmDiskName = "Checkpoint $cpNumber"
                                     $cpNumber = $cpNumber - 1
@@ -1174,7 +1123,7 @@ Param (
                                 # Checkpoint label
                                 if ($vmDiffDisk.Path.EndsWith(".avhdx",1))
                                 {
-                                    if (($cpNumber -ne 0) -or ($cpNumber -ne $null))
+                                    if (($cpNumber -ne 0) -or ($null -ne $cpNumber))
                                     {
                                         $vmDiskName = "Checkpoint $cpNumber"
                                         $cpNumber = $cpNumber - 1
@@ -1191,26 +1140,27 @@ Param (
                                 }
 
                                 # New Relic Infrastructure output - VM VHD Diff Disk
-                                $vmDiskMetrics = @{
-                                  attached  = $vmDiffDisk.Attached
-                                  checkpointNumber = $cpNumber
-                                  domain = $VMhostsDomains.$VMHostItem
-                                  event_type = "HypervVmDiskSample"
-                                  format = $vmDiffDisk.VhdFormat
-                                  fragmentationPercentage = $vmDiffDisk.FragmentationPercentage
-                                  hypervisorHostname = $VMHostItem
-                                  isDiffDisk = $true
-                                  name = $vmDiffDiskName
-                                  path = $vmDiffDisk.Path
-                                  type = $vmDiffDisk.VhdType
-                                  vmName = $outVmName
-                                  "size.max" = $vmDiffDisk.Size
-                                  "size.used" = $vmDiffDisk.FileSize
+                                Publish-MetricsToNRI -metrics @{
+                                    attached = $vmDiffDisk.Attached
+                                    checkpointNumber = $cpNumber
+                                    controllerType = $vmDiskControllerType
+                                    domain = $VMhostsDomains.$VMHostItem
+                                    event_type = "HypervVmDiskSample"
+                                    format = $vmDiffDisk.VhdFormat
+                                    fragmentationPercentage = $vmDiffDisk.FragmentationPercentage
+                                    hypervisorHostname = $VMHostItem
+                                    isDiffDisk = $true
+                                    name = $vmDiffDiskName
+                                    path = $vmDiffDisk.Path
+                                    type = $vmDiffDisk.VhdType
+                                    vmName = $outVmName
+                                    "size.max" = $vmDiffDisk.Size
+                                    "size.used" = $vmDiffDisk.FileSize
                                 }
-                                sAddToNRIData -metrics $vmDiskMetrics
+
                                 $parentPath = $vmDiffDisk.ParentPath
                             }
-                            Until (($parentPath -eq $null) -or ($parentPath -eq ""))
+                            Until (($null -eq $parentPath) -or ($parentPath -eq ""))
                         }
 
                         # Active VHD Array ($activeVhds)
@@ -1235,66 +1185,66 @@ Param (
                         }
 
                         # New Relic Infrastructure output - VM VHD Disk
-                        $vmDiskMetrics = @{
-                          attached  = $vmDisk.Attached
-                          domain = $VMhostsDomains.$VMHostItem
-                          event_type = "HypervVmDiskSample"
-                          format = $vmDisk.VhdFormat
-                          fragmentationPercentage = $vmDisk.FragmentationPercentage
-                          hypervisorHostname = $VMHostItem
-                          isDiffDisk = $true
-                          name = $vmDiskName
-                          path = $vmDisk.Path
-                          type = $vmDisk.VhdType
-                          vmName = $outVmName
-                          "size.max" = $vmDisk.Size
-                          "size.used" = $vmDisk.FileSize
-
+                        Publish-MetricsToNRI -metrics @{
+                            attached = $vmDisk.Attached
+                            controllerType = $vmDiskControllerType
+                            domain = $VMhostsDomains.$VMHostItem
+                            event_type = "HypervVmDiskSample"
+                            format = $vmDisk.VhdFormat
+                            fragmentationPercentage = $vmDisk.FragmentationPercentage
+                            hypervisorHostname = $VMHostItem
+                            isDiffDisk = $true
+                            name = $vmDiskName
+                            path = $vmDisk.Path
+                            type = $vmDisk.VhdType
+                            vmName = $outVmName
+                            "size.max" = $vmDisk.Size
+                            "size.used" = $vmDisk.FileSize
                         }
-                        sAddToNRIData -metrics $vmDiskMetrics
                     }
                 }
 
                 # New Relic Infrastructure output - VM
-                $vmMetrics = @{
-                  checkpointCount = $vmCheckpointCount
-                  clusterName = $ClusterName
-                  domain = $VMhostsDomains.$VMHostItem
-                  event_type = "HypervVmSample"
-                  generation = $VM.Generation
-                  hasCheckpoint = $outVmCheckpoint
-                  hypervisorHostname = $VMHostItem
-                  integrationServicesState = $VM.IntegrationServicesState
-                  integrationServicesVersion = [string]$VM.integrationServicesVersion
-                  isClustered = $VM.IsClustered
-                  name = $outVmName
-                  path = $outVmPath
-                  processorCount = $VM.ProcessorCount
-                  state = [string]$outVmState
-                  uptime = ($VM.Uptime).TotalMilliseconds
-                  version = $VM.Version
-                  "cpu.usage" = $VM.CPUUsage
-                  "mem.assigned" = $VM.MemoryAssigned
-                  "mem.demand" = $VM.MemoryDemand
-                  "mem.startup" = $VM.MemoryStartup
-                  "mem.max" = $VM.MemoryMaximum
-                  "mem.min" = $VM.MemoryMinimum
-                }
                 $vmEntityName = "vm:" + $VMHostItem + ":" + $outVmName
-                sAddToNRIData -entityName $vmEntityName -metrics $vmMetrics
+                Publish-MetricsToNRI -entityName $vmEntityName -metrics @{
+                    checkpointCount = $outVmCheckpointCount
+                    clusterName = $ClusterName
+                    domain = $VMhostsDomains.$VMHostItem
+                    event_type = "HypervVmSample"
+                    generation = $VM.Generation
+                    hasCheckpoint = $outVmCheckpoint
+                    hypervisorHostname = $VMHostItem
+                    integrationServicesState = $VM.IntegrationServicesState
+                    integrationServicesVersion = [string]$VM.integrationServicesVersion
+                    isClustered = $VM.IsClustered
+                    name = $outVmName
+                    osName = $outVmOsName
+                    osVersion = $outVmOsVersion
+                    path = $outVmPath
+                    processorCount = $VM.ProcessorCount
+                    state = [string]$outVmState
+                    uptime = ($VM.Uptime).TotalMilliseconds
+                    version = $VM.Version
+                    "cpu.usage" = $VM.CPUUsage
+                    "mem.assigned" = $VM.MemoryAssigned
+                    "mem.demand" = $VM.MemoryDemand
+                    "mem.startup" = $VM.MemoryStartup
+                    "mem.max" = $VM.MemoryMaximum
+                    "mem.min" = $VM.MemoryMinimum
+                }
             }
         }
         # Error
         elseif ($getVMerr)
         {
-            sPrint -MsgLevel "ERROR" -Message "$($VMHostItem): $($getVMerr.exception.message)"
-            sPrint -MsgLevel "WARNING" -Message "Gathering VM Information for '$($VMHostItem)' failed."
+            Write-ScriptLog -MsgLevel "ERROR" -Message "$($VMHostItem): $($getVMerr.exception.message)"
+            Write-ScriptLog -MsgLevel "WARNING" -Message "Gathering VM Information for '$($VMHostItem)' failed."
             Continue
         }
         else
         # Blank
         {
-            sPrint -MsgLevel "WARNING" -Message "$($VMHostItem): Does not have any Virtual Machines."
+            Write-ScriptLog -MsgLevel "WARNING" -Message "$($VMHostItem): Does not have any Virtual Machines."
         }
     }
 
@@ -1304,7 +1254,7 @@ Param (
 #----------------------------------------
 
     # Print MSG
-    sPrint -MsgLevel "INFO" "Gathering Disk/Volume information..."
+    Write-ScriptLog -MsgLevel "INFO" "Gathering Disk/Volume information..."
 
     # Cluster
     if ($Cluster) {
@@ -1313,7 +1263,7 @@ Param (
         $ovTotalStorage = 0
 
         # Check and get WMI Data
-        $clusResourceDiskData = sGet-Wmi -CompName $clusterName -Namespace root\MSCluster -Class MSCluster_Resource -AI -Filter "Type='Physical Disk'"
+        $clusResourceDiskData = Get-Wmi-Custom -CompName $clusterName -Namespace root\MSCluster -Class MSCluster_Resource -AI -Filter "Type='Physical Disk'"
 
         if ($clusResourceDiskData[1] -eq 1)
         {
@@ -1321,7 +1271,7 @@ Param (
             $clusResourceToDiskData = gwmi -ComputerName $clusterName -Namespace root\MSCluster -Class MSCluster_ResourceToDisk -Authentication PacketPrivacy -Impersonation Impersonate
             $clusDiskToDiskPartitionData = gwmi -ComputerName $clusterName -Namespace root\MSCluster -Class MSCluster_DiskToDiskPartition -Authentication PacketPrivacy -Impersonation Impersonate
             $clusDiskPartitionData = gwmi -ComputerName $clusterName -Namespace root\MSCluster -Class MSCluster_DiskPartition -Authentication PacketPrivacy -Impersonation Impersonate
-            $msftDiskData = gwmi -ComputerName $clusterName -Namespace root\Microsoft\Windows\Storage -Class MSFT_Disk | where{$_.IsClustered -eq $true}
+            $msftDiskData = gwmi -ComputerName $clusterName -Namespace root\Microsoft\Windows\Storage -Class MSFT_Disk | Where-Object {$_.IsClustered -eq $true}
             $msClusterData = gwmi -ComputerName $clusterName -Namespace root\MSCluster -Class MSCluster_Cluster -Authentication PacketPrivacy -Impersonation Impersonate
 
             # If Quorum disk exists, determine the drive letter
@@ -1353,7 +1303,7 @@ Param (
                 }
                 else
                 {
-                    $outDiskState = (sConvert-ClusterDiskState -StateValue $clusterDisk.State)
+                    $outDiskState = (Convert-ClusterDiskState -StateValue $clusterDisk.State)
                 }
 
                 # Cluster Disk State, If...
@@ -1361,13 +1311,13 @@ Param (
                 {
                     # Get DiskID and CSV Paths
                     $clusResourceRELPATH = $clusterDisk.__RELPATH
-                    $clusDiskID = ($clusResourceToDiskData | where{$_.GroupComponent -eq $clusResourceRELPATH}).PartComponent
+                    $clusDiskID = ($clusResourceToDiskData | Where-Object {$_.GroupComponent -eq $clusResourceRELPATH}).PartComponent
                     $shortClusDiskID = $clusDiskID.TrimStart("MSCluster_Disk.Id=`"").TrimEnd("`"")
 
                     # Get physical cluster disk information form MSFT_Disk
-                    $thisMsftDisk = $msftDiskData | where{(($_.Signature -eq $shortClusDiskID) -or ($_.Guid -eq $shortClusDiskID))}
-                    $clusterDiskBusType = sConvert-BusTypeName -BusTypeValue $thisMsftDisk.BusType
-                    $clusterDiskPartitionStyle = sConvert-DiskPartitionStyle -PartitionStyleValue $thisMsftDisk.PartitionStyle
+                    $thisMsftDisk = $msftDiskData | Where-Object {(($_.Signature -eq $shortClusDiskID) -or ($_.Guid -eq $shortClusDiskID))}
+                    $clusterDiskBusType = Convert-BusTypeName -BusTypeValue $thisMsftDisk.BusType
+                    $clusterDiskPartitionStyle = Convert-DiskPartitionStyle -PartitionStyleValue $thisMsftDisk.PartitionStyle
                     $outVolumeUsage = "CSV"
 
                     # IsClusterSharedVolume True
@@ -1376,112 +1326,110 @@ Param (
                         # If maintenance mode enabled
                         if ($clusterDisk.StatusInformation -eq 1)
                         {
-                            $clusDiskPartitionPaths = ((($clusDiskToDiskPartitionData | where{$_.GroupComponent -eq $clusDiskID}).PartComponent) -replace "MSCluster_DiskPartition.Path=`"","").TrimEnd("`"")
+                            $clusDiskPartitionPaths = ((($clusDiskToDiskPartitionData | Where-Object {$_.GroupComponent -eq $clusDiskID}).PartComponent) -replace "MSCluster_DiskPartition.Path=`"","").TrimEnd("`"")
                             $clusDiskVolumeData = Get-ClusterSharedVolume -Cluster $ClusterName -Name $clusterDisk.Name
 
                             foreach($clusDiskPartitionPath in $clusDiskPartitionPaths)
                             {
-                                $outVolumePath = ($clusDiskVolumeData.SharedVolumeInfo | where{$_.Partition.Name -eq $clusDiskPartitionPath}).FriendlyVolumeName
+                                $outVolumePath = ($clusDiskVolumeData.SharedVolumeInfo | Where-Object {$_.Partition.Name -eq $clusDiskPartitionPath}).FriendlyVolumeName
                                 $outVolumeName = $outVolumePath.Split("\")[-1]
-                                $outVolumeFS = (($clusDiskVolumeData.SharedVolumeInfo.Partition) | where{$_.Name -eq $clusDiskPartitionPath}).FileSystem
-                                $outVolumeTotalSize = (($clusDiskVolumeData.SharedVolumeInfo.Partition) | where{$_.Name -eq $clusDiskPartitionPath}).Size
-                                $outVolumeFreeSpace = (($clusDiskVolumeData.SharedVolumeInfo.Partition) | where{$_.Name -eq $clusDiskPartitionPath}).FreeSpace
-                                $outVolumeUsedSpace = (($clusDiskVolumeData.SharedVolumeInfo.Partition) | where{$_.Name -eq $clusDiskPartitionPath}).UsedSpace
-                                $outVolumeFreePercent = [math]::Round((($clusDiskVolumeData.SharedVolumeInfo.Partition) | where{$_.Name -eq $clusDiskPartitionPath}).PercentFree)
+                                $outVolumeFS = (($clusDiskVolumeData.SharedVolumeInfo.Partition) | Where-Object {$_.Name -eq $clusDiskPartitionPath}).FileSystem
+                                $outVolumeTotalSize = (($clusDiskVolumeData.SharedVolumeInfo.Partition) | Where-Object {$_.Name -eq $clusDiskPartitionPath}).Size
+                                $outVolumeFreeSpace = (($clusDiskVolumeData.SharedVolumeInfo.Partition) | Where-Object {$_.Name -eq $clusDiskPartitionPath}).FreeSpace
+                                $outVolumeUsedSpace = (($clusDiskVolumeData.SharedVolumeInfo.Partition) | Where-Object {$_.Name -eq $clusDiskPartitionPath}).UsedSpace
+                                $outVolumeFreePercent = [math]::Round((($clusDiskVolumeData.SharedVolumeInfo.Partition) | Where-Object {$_.Name -eq $clusDiskPartitionPath}).PercentFree)
 
-                                # New Relic Infrastructure output- Clustered Disk
-                                $vmDiskMetrics = @{
-                                  clusterName = $ClusterName
-                                  diskBusType = $clusterDiskBusType
-                                  diskPartitionStyle = $clusterDiskPartitionStyle
-                                  diskState = $outDiskState
-                                  domain = $getCluster.Domain
-                                  event_type = "HypervClusteredDiskSample"
-                                  hypervisorHostname = $clusterDisk.OwnerNode
-                                  name = $clusterDisk.Name
-                                  quarumPath = $msClusterData.QuorumPath
-                                  quorumPathLetter = $quorumPathLetter
-                                  volumeFS = $outVolumeFS
-                                  volumeName = $outVolumeName
-                                  volumePath = $outVolumePath
-                                  volumeUsage = $outVolumeUsage
-                                  "disk.size" = $thisMsftDisk.Size
-                                  "disk.allocated" = $thisMsftDisk.AllocatedSize
-                                  "volume.total" = $outVolumeTotalSize
-                                  "volume.free" = $outVolumeFreeSpace
-                                  "volume.used" = $outVolumeUsedSpace
-                                  "volume.percentFree" = $outVolumeFreePercent
+                                # New Relic Infrastructure output - Clustered Disk
+                                Publish-MetricsToNRI -metrics @{
+                                    clusterName = $ClusterName
+                                    diskBusType = $clusterDiskBusType
+                                    diskPartitionStyle = $clusterDiskPartitionStyle
+                                    diskState = $outDiskState
+                                    domain = $getCluster.Domain
+                                    event_type = "HypervClusteredDiskSample"
+                                    hypervisorHostname = $clusterDisk.OwnerNode
+                                    name = $clusterDisk.Name
+                                    quarumPath = $msClusterData.QuorumPath
+                                    quorumPathLetter = $quorumPathLetter
+                                    volumeFS = $outVolumeFS
+                                    volumeName = $outVolumeName
+                                    volumePath = $outVolumePath
+                                    volumeUsage = $outVolumeUsage
+                                    "disk.size" = $thisMsftDisk.Size
+                                    "disk.allocated" = $thisMsftDisk.AllocatedSize
+                                    "volume.total" = $outVolumeTotalSize
+                                    "volume.free" = $outVolumeFreeSpace
+                                    "volume.used" = $outVolumeUsedSpace
+                                    "volume.percentFree" = $outVolumeFreePercent
                                 }
-                                sAddToNRIData -metrics $vmDiskMetrics
                             }
                         }
                         else
                         {
-                            $clusDiskPartitionPaths = (($clusDiskToDiskPartitionData | where{$_.GroupComponent -eq $clusDiskID}).PartComponent).TrimStart("MSCluster_DiskPartition.Path=`"\\\\?\\Volume").TrimEnd("\\`"")
+                            $clusDiskPartitionPaths = (($clusDiskToDiskPartitionData | Where-Object {$_.GroupComponent -eq $clusDiskID}).PartComponent).TrimStart("MSCluster_DiskPartition.Path=`"\\\\?\\Volume").TrimEnd("\\`"")
 
                             foreach($clusDiskPartitionPath in $clusDiskPartitionPaths) {
-                                $outVolumePath = ($clusDiskPartitionData | where{$_.Path -match $clusDiskPartitionPath}).MountPoints
-                                $outVolumeName = (($clusDiskPartitionData | where{$_.Path -match $clusDiskPartitionPath}).MountPoints).Split("\")[-1]
-                                $outVolumeLabel = ($clusDiskPartitionData | where{$_.Path -match $clusDiskPartitionPath}).VolumeLabel
-                                $outVolumeFS = ($clusDiskPartitionData | where{$_.Path -match $clusDiskPartitionPath}).FileSystem
+                                $outVolumePath = ($clusDiskPartitionData | Where-Object {$_.Path -match $clusDiskPartitionPath}).MountPoints
+                                $outVolumeName = (($clusDiskPartitionData | Where-Object {$_.Path -match $clusDiskPartitionPath}).MountPoints).Split("\")[-1]
+                                $outVolumeLabel = ($clusDiskPartitionData | Where-Object {$_.Path -match $clusDiskPartitionPath}).VolumeLabel
+                                $outVolumeFS = ($clusDiskPartitionData | Where-Object {$_.Path -match $clusDiskPartitionPath}).FileSystem
 
-                                $outVolumeTotalSize = ($clusDiskPartitionData | where{$_.Path -match $clusDiskPartitionPath}).TotalSize
-                                $outVolumeFreeSpace = ($clusDiskPartitionData | where{$_.Path -match $clusDiskPartitionPath}).FreeSpace
+                                $outVolumeTotalSize = ($clusDiskPartitionData | Where-Object {$_.Path -match $clusDiskPartitionPath}).TotalSize
+                                $outVolumeFreeSpace = ($clusDiskPartitionData | Where-Object {$_.Path -match $clusDiskPartitionPath}).FreeSpace
                                 $outVolumeUsedSpace = $outVolumeTotalSize - $outVolumeFreeSpace
-                                $outVolumeFreePercent = [math]::Round((((($clusDiskPartitionData | where{$_.Path -match $clusDiskPartitionPath}).FreeSpace) / (($clusDiskPartitionData | where{$_.Path -match $clusDiskPartitionPath}).TotalSize))) * 100)
+                                $outVolumeFreePercent = [math]::Round((((($clusDiskPartitionData | Where-Object {$_.Path -match $clusDiskPartitionPath}).FreeSpace) / (($clusDiskPartitionData | Where-Object {$_.Path -match $clusDiskPartitionPath}).TotalSize))) * 100)
 
                                 # For Cluster Overview
-                                $ovUsedStorage = $ovUsedStorage + (($clusDiskPartitionData | where{$_.Path -match $clusDiskPartitionPath}).TotalSize - ($clusDiskPartitionData | where{$_.Path -match $clusDiskPartitionPath}).FreeSpace)
-                                $ovTotalStorage = $ovTotalStorage + ($clusDiskPartitionData | where{$_.Path -match $clusDiskPartitionPath}).TotalSize
+                                $ovUsedStorage = $ovUsedStorage + (($clusDiskPartitionData | Where-Object {$_.Path -match $clusDiskPartitionPath}).TotalSize - ($clusDiskPartitionData | Where-Object {$_.Path -match $clusDiskPartitionPath}).FreeSpace)
+                                $ovTotalStorage = $ovTotalStorage + ($clusDiskPartitionData | Where-Object {$_.Path -match $clusDiskPartitionPath}).TotalSize
 
                                 # Active VHD
-                                $thisActiveVhd = $activeVhds | where{$_.Path -like "$outVolumePath*"}
+                                $thisActiveVhd = $activeVhds | Where-Object {$_.Path -like "$outVolumePath*"}
                                 if ($thisVhd)
                                 {
                                     $activeVhdCount = $thisVhd.Count
-                                    $activeVhdTotalFileSize = ($thisVhd.FileSize | measure -Sum).Sum
-                                    $activeVhdTotalDiskSize = ($thisVhd.Size | measure -Sum).Sum
+                                    $activeVhdTotalFileSize = ($thisVhd.FileSize | Measure-Object -Sum).Sum
+                                    $activeVhdTotalDiskSize = ($thisVhd.Size | Measure-Object -Sum).Sum
                                 } else {
                                     $activeVhdCount = 0
                                     $activeVhdTotalFileSize = 0
                                     $activeVhdTotalDiskSize = 0
                                 }
 
-                                # New Relic Infrastructure output- Clustered Disk
-                                $vmDiskMetrics = @{
-                                  activeVHDCount = $activeVhdCount
-                                  activeVhdTotalDiskSize = $activeVhdTotalDiskSize
-                                  activeVHDTotalFileSize = $activeVhdTotalFileSize
-                                  clusterName = $ClusterName
-                                  diskBusType = $clusterDiskBusType
-                                  diskPartitionStyle = $clusterDiskPartitionStyle
-                                  diskState = $outDiskState
-                                  domain = $getCluster.Domain
-                                  event_type = "HypervClusteredDiskSample"
-                                  hypervisorHostname = $clusterDisk.OwnerNode
-                                  name = $clusterDisk.Name
-                                  quarumPath = $msClusterData.QuorumPath
-                                  quorumPathLetter = $quorumPathLetter
-                                  volumeFS = $outVolumeFS
-                                  volumeLabel = $outVolumeLabel
-                                  volumeName = $outVolumeName
-                                  volumePath = $outVolumePath
-                                  volumeUsage = $outVolumeUsage
-                                  "disk.size" = $thisMsftDisk.Size
-                                  "disk.allocated" = $thisMsftDisk.AllocatedSize
-                                  "volume.total" = $outVolumeTotalSize
-                                  "volume.free" = $outVolumeFreeSpace
-                                  "volume.used" = $outVolumeUsedSpace
-                                  "volume.percentFree" = $outVolumeFreePercent
+                                # New Relic Infrastructure output - Clustered Disk
+                                Publish-MetricsToNRI -metrics @{
+                                    activeVHDCount = $activeVhdCount
+                                    activeVhdTotalDiskSize = $activeVhdTotalDiskSize
+                                    activeVHDTotalFileSize = $activeVhdTotalFileSize
+                                    clusterName = $ClusterName
+                                    diskBusType = $clusterDiskBusType
+                                    diskPartitionStyle = $clusterDiskPartitionStyle
+                                    diskState = $outDiskState
+                                    domain = $getCluster.Domain
+                                    event_type = "HypervClusteredDiskSample"
+                                    hypervisorHostname = $clusterDisk.OwnerNode
+                                    name = $clusterDisk.Name
+                                    quarumPath = $msClusterData.QuorumPath
+                                    quorumPathLetter = $quorumPathLetter
+                                    volumeFS = $outVolumeFS
+                                    volumeLabel = $outVolumeLabel
+                                    volumeName = $outVolumeName
+                                    volumePath = $outVolumePath
+                                    volumeUsage = $outVolumeUsage
+                                    "disk.size" = $thisMsftDisk.Size
+                                    "disk.allocated" = $thisMsftDisk.AllocatedSize
+                                    "volume.total" = $outVolumeTotalSize
+                                    "volume.free" = $outVolumeFreeSpace
+                                    "volume.used" = $outVolumeUsedSpace
+                                    "volume.percentFree" = $outVolumeFreePercent
                                 }
-                                sAddToNRIData -metrics $vmDiskMetrics
                             }
                         }
                     }
                     else # IsClusterSharedVolume False
                     {
                         # Get Partition Paths (drives)
-                        $clusDiskPartitionPaths = ($clusDiskToDiskPartitionData | where{$_.GroupComponent -eq $clusDiskID}).PartComponent
+                        $clusDiskPartitionPaths = ($clusDiskToDiskPartitionData | Where-Object {$_.GroupComponent -eq $clusDiskID}).PartComponent
 
                         # If partition(s) on physical disk exists
                         if ($clusDiskPartitionPaths)
@@ -1489,13 +1437,9 @@ Param (
                             # Get partition (volume) information
                             foreach ($clusDiskPartitionPath in $clusDiskPartitionPaths)
                             {
-                                $clusPartitionVolume = $clusDiskPartitionData | where{$_.__RELPATH -eq $clusDiskPartitionPath}
+                                $clusPartitionVolume = $clusDiskPartitionData | Where-Object {$_.__RELPATH -eq $clusDiskPartitionPath}
                                 $assignedPT = $false
                                 $driveLetterExist = $true
-
-                                $outDiskOwner = $clusterDisk.OwnerNode
-                                $outBusType = $busTypeName
-                                $outDiskPartStyle = $diskPartitionStyle
                                 $outVolumeLabel = $clusPartitionVolume.VolumeLabel
                                 $outVolumeFS = $clusPartitionVolume.FileSystem
 
@@ -1533,22 +1477,22 @@ Param (
                                     $thisVolumeUsage = $outVolumeUsage
                                 }
 
-                                $vmDiskMetrics = @{
-                                  clusterName = $ClusterName
-                                  diskBusType = $clusterDiskBusType
-                                  diskPartitionStyle = $clusterDiskPartitionStyle
-                                  diskState = $outDiskState
-                                  domain = $getCluster.Domain
-                                  event_type = "HypervClusteredDiskSample"
-                                  hypervisorHostname = $clusterDisk.OwnerNode
-                                  name = $clusterDisk.Name
-                                  quarumPath = $msClusterData.QuorumPath
-                                  quorumPathLetter = $quorumPathLetter
-                                  volumeFS = $outVolumeFS
-                                  volumeLabel = $outVolumeLabel
-                                  volumeName = $outVolumeName
-                                  volumePath = $outVolumePath
-                                  volumeUsage = $thisVolumeUsage
+                                $clusteredDiskMetrics = @{
+                                    clusterName = $ClusterName
+                                    diskBusType = $clusterDiskBusType
+                                    diskPartitionStyle = $clusterDiskPartitionStyle
+                                    diskState = $outDiskState
+                                    domain = $getCluster.Domain
+                                    event_type = "HypervClusteredDiskSample"
+                                    hypervisorHostname = $clusterDisk.OwnerNode
+                                    name = $clusterDisk.Name
+                                    quarumPath = $msClusterData.QuorumPath
+                                    quorumPathLetter = $quorumPathLetter
+                                    volumeFS = $outVolumeFS
+                                    volumeLabel = $outVolumeLabel
+                                    volumeName = $outVolumeName
+                                    volumePath = $outVolumePath
+                                    volumeUsage = $thisVolumeUsage
                                 }
 
                                 # Volume Info
@@ -1569,27 +1513,27 @@ Param (
                                     $activeVhdCount = 0
                                     $activeVhdTotalFileSize = 0
                                     $activeVhdTotalDiskSize = 0
-                                    $thisActiveVhd = $activeVhds | where{($_.Path -like "$outVolumeName*") -and ($_.Host -eq $clusterDisk.OwnerNode)}
+                                    $thisActiveVhd = $activeVhds | Where-Object {($_.Path -like "$outVolumeName*") -and ($_.Host -eq $clusterDisk.OwnerNode)}
                                     if ($thisVhd)
                                     {
                                         $activeVhdCount = $thisVhd.Count
-                                        $activeVhdTotalFileSize = ($thisVhd.FileSize | measure -Sum).Sum
-                                        $activeVhdTotalDiskSize = ($thisVhd.Size | measure -Sum).Sum
+                                        $activeVhdTotalFileSize = ($thisVhd.FileSize | Measure-Object -Sum).Sum
+                                        $activeVhdTotalDiskSize = ($thisVhd.Size | Measure-Object -Sum).Sum
                                     }
 
-                                    $vmDiskMetrics.add("activeVHDCount", $activeVhdCount)
-                                    $vmDiskMetrics.add("activeVHDTotalFileSize", $activeVhdTotalFileSize)
-                                    $vmDiskMetrics.add("activeVhdTotalDiskSize", $activeVhdTotalDiskSize)
-                                    $vmDiskMetrics.add("disk.size", $thisMsftDisk.Size)
-                                    $vmDiskMetrics.add("disk.allocated", $thisMsftDisk.AllocatedSize)
-                                    $vmDiskMetrics.add("volume.total", $outVolumeTotalSize)
-                                    $vmDiskMetrics.add("volume.free", $outVolumeFreeSpace)
-                                    $vmDiskMetrics.add("volume.used", $outVolumeUsedSpace)
-                                    $vmDiskMetrics.add("volume.percentFree", $outVolumeFreePercent)
+                                    $clusteredDiskMetrics.add("activeVHDCount", $activeVhdCount)
+                                    $clusteredDiskMetrics.add("activeVHDTotalFileSize", $activeVhdTotalFileSize)
+                                    $clusteredDiskMetrics.add("activeVhdTotalDiskSize", $activeVhdTotalDiskSize)
+                                    $clusteredDiskMetrics.add("disk.size", $thisMsftDisk.Size)
+                                    $clusteredDiskMetrics.add("disk.allocated", $thisMsftDisk.AllocatedSize)
+                                    $clusteredDiskMetrics.add("volume.total", $outVolumeTotalSize)
+                                    $clusteredDiskMetrics.add("volume.free", $outVolumeFreeSpace)
+                                    $clusteredDiskMetrics.add("volume.used", $outVolumeUsedSpace)
+                                    $clusteredDiskMetrics.add("volume.percentFree", $outVolumeFreePercent)
                                 }
 
                                 # New Relic Infrastructure output - Clustered Disk
-                                sAddToNRIData -metrics $vmDiskMetrics
+                                Publish-MetricsToNRI -metrics $clusteredDiskMetrics
 
                                 if($assignedPT) {
                                   Break
@@ -1612,51 +1556,49 @@ Param (
                                 $outVolumeLabel = "Assigned to '$($clusterDisk.OwnerGroup)' as a pass-through disk"
                             }
 
-                            # New Relic Infrastructure output- Clustered Disk
-                            $vmDiskMetrics = @{
-                              clusterName = $ClusterName
-                              diskBusType = $clusterDiskBusType
-                              diskPartitionStyle = $clusterDiskPartitionStyle
-                              diskState = $outDiskState
-                              domain = $getCluster.Domain
-                              event_type = "HypervClusteredDiskSample"
-                              hypervisorHostname = $clusterDisk.OwnerNode
-                              name = $clusterDisk.Name
-                              quarumPath = $msClusterData.QuorumPath
-                              quorumPathLetter = $quorumPathLetter
-                              volumeLabel = $outVolumeLabel
-                              volumeName = $outVolumeName
-                              volumeUsage = $thisVolumeUsage
-                              "disk.size" = $thisMsftDisk.Size
-                              "disk.allocated" = $thisMsftDisk.AllocatedSize
-                              "volume.total" = $outVolumeTotalSize
-                              "volume.free" = $outVolumeFreeSpace
-                              "volume.used" = $outVolumeUsedSpace
-                              "volume.percentFree" = $outVolumeFreePercent
+                            # New Relic Infrastructure output - Clustered Disk
+                            Publish-MetricsToNRI -metrics = @{
+                                clusterName = $ClusterName
+                                diskBusType = $clusterDiskBusType
+                                diskPartitionStyle = $clusterDiskPartitionStyle
+                                diskState = $outDiskState
+                                domain = $getCluster.Domain
+                                event_type = "HypervClusteredDiskSample"
+                                hypervisorHostname = $clusterDisk.OwnerNode
+                                name = $clusterDisk.Name
+                                quarumPath = $msClusterData.QuorumPath
+                                quorumPathLetter = $quorumPathLetter
+                                volumeLabel = $outVolumeLabel
+                                volumeName = $outVolumeName
+                                volumeUsage = $thisVolumeUsage
+                                "disk.size" = $thisMsftDisk.Size
+                                "disk.allocated" = $thisMsftDisk.AllocatedSize
+                                "volume.total" = $outVolumeTotalSize
+                                "volume.free" = $outVolumeFreeSpace
+                                "volume.used" = $outVolumeUsedSpace
+                                "volume.percentFree" = $outVolumeFreePercent
                             }
-                            sAddToNRIData -metrics $vmDiskMetrics
                         }
                     }
                 }
                 else {
-                    # New Relic Infrastructure output- Clustered Disk
-                    $vmDiskMetrics = @{
-                      clusterName = $ClusterName
-                      diskState = $outDiskState
-                      domain = $getCluster.Domain
-                      event_type = "HypervClusteredDiskSample"
-                      hypervisorHostname = $clusterDisk.OwnerNode
-                      name = $clusterDisk.Name
-                      quarumPath = $msClusterData.QuorumPath
-                      quorumPathLetter = $quorumPathLetter
+                    # New Relic Infrastructure output - Clustered Disk
+                    Publish-MetricsToNRI -metrics @{
+                        clusterName = $ClusterName
+                        diskState = $outDiskState
+                        domain = $getCluster.Domain
+                        event_type = "HypervClusteredDiskSample"
+                        hypervisorHostname = $clusterDisk.OwnerNode
+                        name = $clusterDisk.Name
+                        quarumPath = $msClusterData.QuorumPath
+                        quorumPathLetter = $quorumPathLetter
                     }
-                    sAddToNRIData -metrics $vmDiskMetrics
                 }
             }
         }
         elseif ($clusResourceDiskData[1] -ne 2)
         {
-            sPrint -MsgLevel "ERROR" -Message "$ClusterName`: Gathering Disk/Volume information failed. $($clusResourceDiskData[0])"
+            Write-ScriptLog -MsgLevel "ERROR" -Message "$ClusterName`: Gathering Disk/Volume information failed. $($clusResourceDiskData[0])"
         }
     }
 
@@ -1666,7 +1608,7 @@ Param (
         foreach ($computerName in $VMHosts)
         {
             $outDomain = (Get-VMHost -ComputerName $vmHostItem).FullyQualifiedDomainName
-            $logicalDisks = sGet-Wmi -CompName $computerName -Namespace root\CIMv2 -Class Win32_LogicalDisk -AI -Filter "DriveType='3'"
+            $logicalDisks = Get-Wmi-Custom -CompName $computerName -Namespace root\CIMv2 -Class Win32_LogicalDisk -AI -Filter "DriveType='3'"
 
             if ($logicalDisks[1] -eq 1)
             {
@@ -1684,20 +1626,20 @@ Param (
                 foreach ($logicalDisk in $logicalDisks)
                 {
                     # Filter for physical disk name
-                    $logicalToDiskPartition = ($logicalToDiskPartitionData | where{$_.Dependent -eq $logicalDisk.Path}).Antecedent
-                    $physicalDiskPath = ($physicalDiskPathData | where{$_.Dependent -eq $logicalToDiskPartition}).Antecedent
-                    $physicalDiskName = (($physicalDiskNameData | where{($_.Path).Path -eq $physicalDiskPath}).Name).Replace("\\.\PHYSICALDRIVE","Disk ").Replace("PHYSICALDRIVE","Disk")
+                    $logicalToDiskPartition = ($logicalToDiskPartitionData | Where-Object {$_.Dependent -eq $logicalDisk.Path}).Antecedent
+                    $physicalDiskPath = ($physicalDiskPathData | Where-Object {$_.Dependent -eq $logicalToDiskPartition}).Antecedent
+                    $physicalDiskName = (($physicalDiskNameData | Where-Object {($_.Path).Path -eq $physicalDiskPath}).Name).Replace("\\.\PHYSICALDRIVE","Disk ").Replace("PHYSICALDRIVE","Disk")
 
                     # Filter for other physical disk information
-                    $msftDiskId = ($msftDiskIdData | where{$_.DriveLetter -eq ($logicalDisk.DeviceID).TrimEnd(":")}).DiskId
-                    $msftDisk = $msftDiskData | where{$_.ObjectId -eq $msftDiskId}
+                    $msftDiskId = ($msftDiskIdData | Where-Object {$_.DriveLetter -eq ($logicalDisk.DeviceID).TrimEnd(":")}).DiskId
+                    $msftDisk = $msftDiskData | Where-Object {$_.ObjectId -eq $msftDiskId}
 
                     # Logical disk (volume) information
                     $logicalDiskFreePercent = [math]::Round((($logicalDisk.FreeSpace) / ($logicalDisk.Size)) * 100)
 
                     # Physical disk information
-                    $outMsftDiskBusType = sConvert-BusTypeName -BusTypeValue $msftDisk.BusType
-                    $outMsftDiskPartitionStyle = sConvert-DiskPartitionStyle -PartitionStyleValue $msftDisk.PartitionStyle
+                    $outMsftDiskBusType = Convert-BusTypeName -BusTypeValue $msftDisk.BusType
+                    $outMsftDiskPartitionStyle = Convert-DiskPartitionStyle -PartitionStyleValue $msftDisk.PartitionStyle
                     $msftDiskState = "Online"
 
                     # Volume usage type
@@ -1710,45 +1652,44 @@ Param (
                         $logicalDiskUsage = "Volume"
                     }
 
-                    $thisActiveVhd = $activeVhds | where{($_.Path -like "$outLogicalDiskName*") -and ($_.Host -eq $msftDiskOwner)}
+                    $thisActiveVhd = $activeVhds | Where-Object {($_.Path -like "$outLogicalDiskName*") -and ($_.Host -eq $msftDiskOwner)}
                     if ($thisActiveVhd)
                     {
                         $activeVhdCount = $thisVhd.Count
-                        $activeVhdTotalFileSize = ($thisVhd.FileSize | measure -Sum).Sum
-                        $activeVhdTotalDiskSize = ($thisVhd.Size | measure -Sum).Sum
+                        $activeVhdTotalFileSize = ($thisVhd.FileSize | Measure-Object -Sum).Sum
+                        $activeVhdTotalDiskSize = ($thisVhd.Size | Measure-Object -Sum).Sum
                     } else {
                         $activeVhdCount = 0
                         $activeVhdTotalFileSize = 0
                         $activeVhdTotalDiskSize = 0
                     }
 
-                    # New Relic Infrastructure output- Clustered Disk
-                    $vmDiskMetrics = @{
-                      activeVhdCount = $activeVhdCount
-                      activeVhdTotalDiskSize = $activeVhdTotalDiskSize
-                      activeVhdTotalFileSize = $activeVhdTotalFileSize
-                      clusterName = $ClusterName
-                      domain = $outDomain
-                      event_type = "HypervHostLogicalDiskSample"
-                      fileSystem = $logicalDisk.FileSystem
-                      hypervisorHostname = $computerName
-                      logicalDiskUsage = $logicalDiskUsage
-                      logicalToDiskPartition = $logicalToDiskPartition
-                      msftDiskId = $msftDiskId
-                      name = $logicalDisk.Name
-                      physicalDiskBusType = $outMsftDiskBusType
-                      physicalDiskName  = $physicalDiskName
-                      physicalDiskPartitionStyle = $outMsftDiskPartitionStyle
-                      physicalDiskPath = $physicalDiskPath
-                      physicalDiskState = $msftDiskState
-                      volumeName = $logicalDisk.VolumeName
-                      "logical.free" = $logicalDisk.FreeSpace
-                      "logical.freePercent" = $logicalDiskFreePercent
-                      "logical.size" = $logicalDisk.Size
-                      "physical.allocated" = $msftDisk.AllocatedSize
-                      "physical.size" = $msftDisk.Size
+                    # New Relic Infrastructure output - Clustered Disk
+                    Publish-MetricsToNRI -metrics @{
+                        activeVhdCount = $activeVhdCount
+                        activeVhdTotalDiskSize = $activeVhdTotalDiskSize
+                        activeVhdTotalFileSize = $activeVhdTotalFileSize
+                        clusterName = $ClusterName
+                        domain = $outDomain
+                        event_type = "HypervHostLogicalDiskSample"
+                        fileSystem = $logicalDisk.FileSystem
+                        hypervisorHostname = $computerName
+                        logicalDiskUsage = $logicalDiskUsage
+                        logicalToDiskPartition = $logicalToDiskPartition
+                        msftDiskId = $msftDiskId
+                        name = $logicalDisk.Name
+                        physicalDiskBusType = $outMsftDiskBusType
+                        physicalDiskName  = $physicalDiskName
+                        physicalDiskPartitionStyle = $outMsftDiskPartitionStyle
+                        physicalDiskPath = $physicalDiskPath
+                        physicalDiskState = $msftDiskState
+                        volumeName = $logicalDisk.VolumeName
+                        "logical.free" = $logicalDisk.FreeSpace
+                        "logical.freePercent" = $logicalDiskFreePercent
+                        "logical.size" = $logicalDisk.Size
+                        "physical.allocated" = $msftDisk.AllocatedSize
+                        "physical.size" = $msftDisk.Size
                     }
-                    sAddToNRIData -metrics $vmDiskMetrics
                 }
             }
             elseif ($logicalDisks[1] -eq 2)
@@ -1758,7 +1699,7 @@ Param (
             else
             {
                 # Error
-                sPrint -MsgLevel "ERROR" -Message "$($computerName): Gathering Disk/Volume information failed. $($logicalDisks[0])"
+                Write-ScriptLog -MsgLevel "ERROR" -Message "$($computerName): Gathering Disk/Volume information failed. $($logicalDisks[0])"
                 Continue
             }
         }
@@ -1769,43 +1710,40 @@ Param (
 #region Cluster Overview Information
 #-----------------------------------
 
-    if($ovTotalNode -eq $null) { $ovTotalNode = 0 }
-    if($ovTotalVm -eq $null) { $ovTotalVm = 0 }
-    if($ovRunningVm -eq $null) { $ovRunningVm = 0 }
-    if($ovTotalLP -eq $null) { $ovTotalLP = 0 }
+    if($null -eq $ovTotalNode) { $ovTotalNode = 0 }
+    if($null -eq $ovTotalVm) { $ovTotalVm = 0 }
+    if($null -eq $ovRunningVm) { $ovRunningVm = 0 }
+    if($null -eq $ovTotalLP) { $ovTotalLP = 0 }
 
     # New Relic Infrastructure output - Cluster overview
-    $clusterMetrics = @{
-      backupInProgress = $getCluster.BackupInProgress
-      clusterName = $ClusterName
-      domain = $getCluster.Domain
-      event_type = "HypervClusterSample"
-      functionalLevel = $getCluster.ClusterFunctionalLevel
-      logicalProcessors = $ovTotalLP
-      name = $ClusterName
-      sharedVolumeRoot = $getCluster.SharedVolumesRoot
-      sharedVolumesEnabled = [string]$getCluster.EnableSharedVolumes
-      upgradeVersion = $getCluster.ClusterUpgradeVersion
-      "mem.reserved" = $getCluster.RootMemoryReserved
-      "mem.size" = $ovTotalMemory
-      "mem.used" = $ovUsedMemory
-      "nodes.total" = $ovTotalNode
-      "nodes.up" = $ovUpNode
-      "storage.size" = $ovTotalStorage
-      "storage.used" = $ovUsedStorage
-      "vm.mem.size" = $ovTotalVmMemory
-      "vm.mem.used" = $ovUsedVmMemory
-      "vm.running" = $ovRunningVm
-      "vm.total" = $ovTotalVm
-      "vm.vhd.size" = $ovTotalVmVHD
-      "vm.vhd.used" = $ovUsedVmVHD
+    $clusterEntityName = "cluster:" + $ClusterName
+    Publish-MetricsToNRI -entityName $clusterEntityName -metrics @{
+        backupInProgress = $getCluster.BackupInProgress
+        clusterName = $ClusterName
+        domain = $getCluster.Domain
+        event_type = "HypervClusterSample"
+        functionalLevel = $getCluster.ClusterFunctionalLevel
+        logicalProcessors = $ovTotalLP
+        name = $ClusterName
+        sharedVolumeRoot = $getCluster.SharedVolumesRoot
+        sharedVolumesEnabled = [string]$getCluster.EnableSharedVolumes
+        upgradeVersion = $getCluster.ClusterUpgradeVersion
+        "mem.reserved" = $getCluster.RootMemoryReserved
+        "mem.size" = $ovTotalMemory
+        "mem.used" = $ovUsedMemory
+        "nodes.total" = $ovTotalNode
+        "nodes.up" = $ovUpNode
+        "storage.size" = $ovTotalStorage
+        "storage.used" = $ovUsedStorage
+        "vm.mem.size" = $ovTotalVmMemory
+        "vm.mem.used" = $ovUsedVmMemory
+        "vm.running" = $ovRunningVm
+        "vm.total" = $ovTotalVm
+        "vm.vhd.size" = $ovTotalVmVHD
+        "vm.vhd.used" = $ovUsedVmVHD
     }
-    $clusterEntityName = "cluster:"  + $ClusterName
-    sAddToNRIData -entityName $clusterEntityName -metrics $clusterMetrics
 
 #endregion
 
-    sPrint -MsgLevel "INFO" "Completed!"
-    sPrint -MsgLevel "DEBUG" -Message "----- End   -----"
-
-#endregion
+Write-ScriptLog -MsgLevel "INFO" "Completed!"
+Write-ScriptLog -MsgLevel "DEBUG" -Message "----- End   -----"
