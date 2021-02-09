@@ -1050,8 +1050,9 @@ Filter Import-CimXml
                 }
 
                 # Disks
-                $vmDisks = Get-VHD -ComputerName $VMHostItem -VMId $vm.VMId -ErrorAction SilentlyContinue -ErrorVariable getVhdErr
-                $vmPTDisks = Get-VMHardDiskDrive -ComputerName $VMHostItem -VMname $vm.name | Where-Object {$_.Path -like "Disk*"}
+                $vmVHDs = Get-VHD -ComputerName $VMHostItem -VMId $vm.VMId -ErrorAction SilentlyContinue -ErrorVariable getVhdErr
+                $vmDisks = Get-VMHardDiskDrive -ComputerName $VMHostItem -VMname $outVmName
+                $vmPTDisks = $vmDisks | Where-Object {$_.Path -like "Disk*"}
 
                 # Pass-through
                 if ($vmPTDisks)
@@ -1077,13 +1078,13 @@ Filter Import-CimXml
                 }
 
                 # VHD
-                if ($vmDisks)
+                if ($vmVHDs)
                 {
-                    foreach($vmDisk in $vmDisks)
+                    foreach($vmDisk in $vmVHDs)
                     {
                         # Name, Path, Type, Size and File Size
                         $vmDiskName = $vmDisk.Path.Split('\')[-1]
-
+                        
                         # For Cluster Overview
                         if ($VM.IsClustered -eq $true -and $VM.State -eq "Running")
                         {
@@ -1094,8 +1095,12 @@ Filter Import-CimXml
                         # For Active VHDs File Size
                         $activeVhdFileSize = $vmDisk.FileSize
 
+                        $thisVmDisk = $vmDisks | Where-Object {$_.Path -eq $vmDisk.Path}
+
                         # Get Controller Type
-                        $vmDiskControllerType = (Get-VMHardDiskDrive -ComputerName $VMHostItem -VMName $vm.VMName | Where-Object {$_.Path -eq $vmDisk.Path}).ControllerType
+                        $outVmDiskControllerType = $thisVmDisk.ControllerType
+                        $outVmDiskIopsMax = $thisVmDisk.MaximumIOPS
+                        $outVmDiskIopsMin = $thisVmDisk.MinimumIOPS
 
                         # If differencing disks exist
                         if ($vmDisk.ParentPath)
@@ -1143,7 +1148,7 @@ Filter Import-CimXml
                                 Publish-MetricsToNRI -metrics @{
                                     attached = $vmDiffDisk.Attached
                                     checkpointNumber = $cpNumber
-                                    controllerType = $vmDiskControllerType
+                                    controllerType = $outVmDiskControllerType
                                     domain = $VMhostsDomains.$VMHostItem
                                     event_type = "HypervVmDiskSample"
                                     format = $vmDiffDisk.VhdFormat
@@ -1154,6 +1159,8 @@ Filter Import-CimXml
                                     path = $vmDiffDisk.Path
                                     type = $vmDiffDisk.VhdType
                                     vmName = $outVmName
+                                    "iops.max" = $outVmDiskIopsMax
+                                    "iops.min" = $outVmDiskIopsMin
                                     "size.max" = $vmDiffDisk.Size
                                     "size.used" = $vmDiffDisk.FileSize
                                 }
@@ -1187,7 +1194,7 @@ Filter Import-CimXml
                         # New Relic Infrastructure output - VM VHD Disk
                         Publish-MetricsToNRI -metrics @{
                             attached = $vmDisk.Attached
-                            controllerType = $vmDiskControllerType
+                            controllerType = $outVmDiskControllerType
                             domain = $VMhostsDomains.$VMHostItem
                             event_type = "HypervVmDiskSample"
                             format = $vmDisk.VhdFormat
@@ -1198,6 +1205,8 @@ Filter Import-CimXml
                             path = $vmDisk.Path
                             type = $vmDisk.VhdType
                             vmName = $outVmName
+                            "iops.max" = $outVmDiskIopsMax
+                            "iops.min" = $outVmDiskIopsMin
                             "size.max" = $vmDisk.Size
                             "size.used" = $vmDisk.FileSize
                         }
